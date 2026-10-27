@@ -96,7 +96,9 @@ quits after 30 minutes with no tabs open.
 
 **Folders:** mdv lists every `.md`, `.markdown`, `.mdown` and `.mkd` file in the folder and
 its subfolders, skipping `node_modules`, `.git` and hidden folders. A `README.md` or
-`index.md` opens first.
+`index.md` opens first. To browse just part of a project, open that subfolder
+(`mdv docs/guides`). The sidebar follows the folder you opened most recently, so
+`mdv docs` widens it again.
 
 **Links:** links inside a document open in a new tab, and links to other Markdown files open
 in the viewer. `#section` links and footnotes stay in the current tab. Relative images

@@ -92,11 +92,13 @@ function rootFor(p) {
   return best;
 }
 
-// Closest *folder-mode* root that contains p, for the sidebar.
+// Folder-mode root for the sidebar: the most recently opened folder that contains p.
+// `roots` is in open order (addRoot re-inserts), so running `mdv sample/guides` after
+// `mdv sample` shows just guides, and running `mdv sample` again widens it back.
 function dirRootFor(p) {
   let best = null;
   for (const r of roots.values()) {
-    if (r.kind === 'dir' && inside(p, r.dir) && (!best || r.dir.length < best.dir.length)) best = r;
+    if (r.kind === 'dir' && inside(p, r.dir)) best = r;
   }
   return best;
 }
