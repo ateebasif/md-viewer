@@ -1,0 +1,273 @@
+# mdv
+
+**A fast, offline Markdown viewer for macOS.** Point it at a file or a folder and it opens a
+clean, themed page in your browser that updates as you save. It's built for reading, not
+editing: good typography, 18 themes, 15 fonts, and no Electron.
+
+```bash
+mdv README.md      # one file
+mdv ~/notes        # a whole folder, with a sidebar of every Markdown file
+mdv                # the current folder
+```
+
+![mdv showing a folder of notes in the Light theme, with the file sidebar and table of contents](docs/screenshots/light.png)
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/dark.png" alt="Code blocks with shell prompts and file names in the Tokyo Night theme"></td>
+    <td><img src="docs/screenshots/sepia.png" alt="GitHub-style alerts in the Sepia theme"></td>
+  </tr>
+</table>
+
+## Features
+
+- **Reads like a book.** A comfortable line length, generous spacing and a clear type
+  scale. Pick from 15 typefaces, including Literata, Atkinson Hyperlegible and OpenDyslexic,
+  and adjust size, width and line spacing.
+- **18 themes,** from Light, Sepia and an e-ink style Ink theme to Solarized, Gruvbox,
+  Catppuccin, Rosé Pine, Tokyo Night and Dracula. Each has matching code colors.
+- **Live reload.** Save in any editor and the page updates in place, keeping your scroll
+  position.
+- **Folders.** A sidebar lists every Markdown file, with filtering (`/`), next/previous
+  navigation and a sticky table of contents.
+- **Everything GitHub renders:** tables, task lists, footnotes, alerts (`[!NOTE]`,
+  `[!WARNING]`…), Mermaid diagrams, heading anchors and front matter.
+- **Code that's easy to scan.** Syntax highlighting, copy buttons, `$` prompts on shell
+  commands (left out when you copy), terminal sessions with dimmed output, file names in
+  headers, whole-line diffs, and long blocks that fold.
+- **Finder integration.** Open With, drag and drop onto the app, a "View in MDView" Quick
+  Action, or set it as your default Markdown app.
+- **Private and offline.** It runs on `127.0.0.1` only and never loads anything from a CDN.
+  It serves only the folders you open, and only to a browser you opened it in.
+
+## Requirements
+
+- macOS (it relies on `open`, Finder and macOS fonts, and has only been tested there)
+- [Node.js](https://nodejs.org) 18 or newer, or [Bun](https://bun.sh)
+
+## Install
+
+```bash
+git clone https://github.com/ateebasif/md-viewer.git
+cd md-viewer
+./install.sh
+```
+
+The installer:
+
+1. Installs dependencies (`bun install` if Bun is available, otherwise `npm install`).
+2. Links `mdv` into `~/.local/bin`, or `/usr/local/bin` if that's the writable one. If the
+   folder isn't on your `PATH`, it prints the line to add to `~/.zshrc`.
+3. Builds **MDView.app** into `~/Applications` and registers it, so it appears under
+   **Open With** for Markdown files and folders.
+4. Installs a Finder Quick Action called **View in MDView**.
+
+Then try the sample:
+
+```bash
+mdv sample
+```
+
+> [!NOTE]
+> The app and the Quick Action call Node by its absolute path, because apps opened from
+> Finder don't get your shell `PATH`. If you switch Node versions (with nvm, say), run
+> `./install.sh` again.
+
+## Usage
+
+```
+mdv [file.md | folder] [options]
+```
+
+| Option | What it does |
+| --- | --- |
+| `--port <n>` | Port to use (default `4747`) |
+| `--theme <name>` | Start with a theme, e.g. `sepia`, `solarized-light`, `mocha`, `tokyo-night` (remembered) |
+| `--editor <app>` | App the **Edit** button opens files in, e.g. `"Visual Studio Code"` or `Cursor` (saved; `--editor ""` resets) |
+| `--no-open` | Print the URL instead of opening a browser tab |
+| `--stop` | Stop the running server |
+| `--foreground` | Run the server in this terminal instead of in the background |
+| `-h`, `--help` | Show help, including every theme name |
+| `-v`, `--version` | Show the version |
+
+Only one server runs at a time. If it's already running, `mdv` hands it the new path and
+opens another tab. The server runs in the background, logs to `~/Library/Logs/mdv.log`, and
+quits after 30 minutes with no tabs open.
+
+**Folders:** mdv lists every `.md`, `.markdown`, `.mdown` and `.mkd` file in the folder and
+its subfolders, skipping `node_modules`, `.git` and hidden folders. A `README.md` or
+`index.md` opens first.
+
+**Links:** links inside a document open in a new tab, and links to other Markdown files open
+in the viewer. `#section` links and footnotes stay in the current tab. Relative images
+(`![](./img/x.png)`) load from the Markdown file's own folder.
+
+### From Finder
+
+- **Open With:** right-click a `.md` file or a folder and choose **Open With → MDView**.
+- **Quick Action:** right-click and choose **Quick Actions → View in MDView**. If it's
+  missing, turn it on in System Settings → Keyboard → Keyboard Shortcuts → Services → Files
+  and Folders.
+- **Drag and drop** files or folders onto MDView in `~/Applications` or the Dock.
+- **Open MDView.app by itself** to pick a file or folder.
+
+To make MDView the default for `.md` files, select any `.md` file in Finder and press **⌘I**.
+Under **Open with**, choose **MDView** (use **Other…** and browse to `~/Applications` if it
+isn't listed), then click **Change All…**.
+
+## Keyboard shortcuts
+
+| Key | Action |
+| --- | --- |
+| `t` | Cycle themes |
+| `s` | Reading settings: typeface, size, width, spacing, code font |
+| `/` | Filter the sidebar file list (`Enter` opens the first match) |
+| `[` | Show or hide the sidebar |
+| `n` / `p` | Next or previous file in the folder |
+| `e` | Open the file in your editor |
+| `r` | Reveal the file in Finder |
+| `+` / `-` | Larger or smaller text |
+| `?` | Show all shortcuts |
+
+The dot in the top bar shows live reload: green means connected, amber means reconnecting.
+Drag the edge of the sidebar or the table of contents to resize it, and double-click the
+edge to reset it.
+
+## Themes
+
+**System** (the default) follows macOS light and dark mode.
+
+| Light | | Dark | |
+| --- | --- | --- | --- |
+| **Light** | Neutral white, blue links | **Dark** | Neutral charcoal |
+| **Sepia** | Warm paper, teal links | **Dusk** | Deep indigo, lavender links |
+| **Ink** | E-reader black on white | **Fjord** | Cool slate, frost blues |
+| **Moss** | Soft sage paper | **Midnight** | True black for OLED screens |
+| **Solarized Light** | Classic low contrast | **Solarized Dark** | Solarized on deep teal |
+| **Gruvbox Light** | Retro, earthy | **Gruvbox Dark** | Warm retro dark |
+| **Catppuccin Latte** | Soft pastels | **Catppuccin Mocha** | Pastels on dark |
+| | | **Rosé Pine** | Muted, low glare |
+| | | **Tokyo Night** | Cool night blues |
+| | | **Dracula** | Vivid, high contrast |
+
+## Fonts
+
+Open **Aa** (or press `s`) to choose:
+
+- **Serif:** Charter (default), Iowan Old Style, Literata, Source Serif, Palatino,
+  Baskerville, Georgia, and New York (Safari only).
+- **Sans:** San Francisco, Inter, Avenir Next, Helvetica Neue, Optima.
+- **Legibility:** Atkinson Hyperlegible (designed for low vision) and OpenDyslexic.
+- **Code:** SF Mono, Menlo or JetBrains Mono.
+
+Literata, Source Serif, Inter, Atkinson Hyperlegible, OpenDyslexic and JetBrains Mono ship
+with mdv through [Fontsource](https://fontsource.org), so they work offline. Each is
+downloaded from the local server only when you pick it. The rest come with macOS, and fonts
+your browser can't use are hidden.
+
+## Writing tips
+
+mdv renders standard Markdown, plus a few info-string extras for code blocks:
+
+````markdown
+```console
+$ mdv --version
+1.0.0
+```
+
+```js title="src/app.js"
+export const hello = () => 'world';
+```
+````
+
+- In ` ```bash `, `sh` and `zsh` blocks, each command gets a `$` prompt that isn't copied.
+  Comments, `\` continuation lines and scripts with `if` or functions don't get one.
+- In ` ```console ` blocks, write `$ command` followed by its output. **Copy** takes only the
+  commands.
+- ` ```js title="file.js" `, ` ```js file.js ` and ` ```js:file.js ` all show a file name.
+- ` ```diff ` blocks color whole lines.
+
+Open [`sample/showcase.md`](sample/showcase.md) with mdv to see every element.
+
+## Troubleshooting
+
+**Nothing opens from Finder the first time.** For files in Downloads, Documents or Desktop,
+macOS asks whether MDView may access that folder, and nothing happens until you click
+**Allow**. You can review this in System Settings → Privacy & Security → Files and Folders.
+Re-running `./install.sh` can make macOS ask again.
+
+**The page says "Open this page with mdv".** mdv only shows files in a browser it opened
+itself (see [Security](#security)). Run `mdv <path>` again.
+
+**`mdv: command not found`.** Add the link folder the installer printed to your `PATH`, for
+example `export PATH="$HOME/.local/bin:$PATH"` in `~/.zshrc`.
+
+**Port 4747 is busy.** Use another one: `mdv --port 4848 notes.md`.
+
+**Something looks wrong.** Check `~/Library/Logs/mdv.log`, or run
+`mdv --stop && mdv --foreground <path>` to see the server output.
+
+## Security
+
+mdv is a local server, so it's built to expose as little as possible:
+
+- It listens only on `127.0.0.1` and rejects other `Host` headers, which blocks DNS
+  rebinding.
+- The CLI and server share a random key in `~/.config/mdv/secret` (readable only by you).
+  Browsers sign in with a one-time code in the URL mdv opens, which becomes a `SameSite=Strict`
+  cookie. Other programs, other users and other websites can't use the server.
+- Only folders you opened are served. Real paths are checked on every read, so `..`,
+  symlinks and swapped-in symlinks can't escape. FIFOs and device files are refused, and
+  hidden paths are never served from a single opened file's folder.
+- Pages run only mdv's own scripts (Content Security Policy). `<script>`, `<style>` and
+  `<meta>` are stripped from Markdown, and other files from your folders are sandboxed.
+
+See [SECURITY.md](SECURITY.md) for details and how to report a vulnerability.
+
+## Uninstall
+
+```bash
+./uninstall.sh
+```
+
+This stops the server and removes the `mdv` link, `~/Applications/MDView.app`, the Quick
+Action, and `~/.config/mdv` (settings, remembered folders and the access key). Delete the
+cloned folder, and `~/Library/Logs/mdv.log` if you like, to remove everything.
+
+## Development
+
+There's no build step. Edit the files and reload. Run the server in the foreground to see its
+output:
+
+```bash
+mdv --stop
+mdv --foreground sample
+```
+
+The server reads `src/` when it starts, so restart it after changing server code. Changes in
+`public/` only need a page reload. Everything must run unchanged under both Node and Bun.
+
+```
+bin/mdv.js       CLI: arguments, single-instance handoff, starting the server
+src/server.js    HTTP server, access checks, auth, live reload (SSE), idle shutdown
+src/render.js    Markdown → HTML: marked, extensions, highlight.js, code-block extras
+src/page.js      Page shell, sidebar, table of contents, settings panel
+src/themes.js    Theme and font lists shared by the CLI, page and client
+src/auth.js      The access key shared by the CLI and server
+src/tree.js      Recursive Markdown file listing for the sidebar
+public/          Client CSS and JS: themes, reader controls, filter, Mermaid, live reload
+macos/           AppleScript for MDView.app and the icon drawing script
+sample/          Documents that exercise every feature
+```
+
+## Credits
+
+Built on [marked](https://marked.js.org) and its extensions,
+[highlight.js](https://highlightjs.org) and [Mermaid](https://mermaid.js.org). Bundled fonts
+are from [Fontsource](https://fontsource.org) under the SIL Open Font License. The Solarized,
+Gruvbox, Catppuccin, Rosé Pine, Tokyo Night and Dracula themes are adaptations of those
+projects' published palettes.
+
+## License
+
+[MIT](LICENSE)
