@@ -1,0 +1,619 @@
+// mdv client: reader preferences, sidebar filter, TOC, copy buttons, mermaid and live reload.
+(function () {
+  'use strict';
+
+  const root = document.documentElement;
+  const boot = JSON.parse(document.getElementById('mdv-boot').textContent || '{}');
+  const $ = (sel, el = document) => el.querySelector(sel);
+  const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
+
+  // Theme list comes from the page's picker, which the server renders from src/themes.js.
+  const THEMES = $$('#mdv-theme option').map((o) => o.value);
+  const DARK_THEMES = $$('#mdv-theme option[data-dark]').map((o) => o.value);
+  const SIZE_MIN = 14, SIZE_MAX = 26, SIZE_DEFAULT = 18;
+
+  const store = {
+    get(k) { try { return localStorage.getItem('mdv.' + k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem('mdv.' + k, v); } catch { /* private mode */ } },
+    del(k) { try { localStorage.removeItem('mdv.' + k); } catch { /* private mode */ } },
+  };
+
+  // Drop ?theme= from the address bar once it's been saved.
+  if (new URLSearchParams(location.search).has('theme')) {
+    const u = new URL(location.href);
+    u.searchParams.delete('theme');
+    history.replaceState(null, '', u.pathname + u.search + u.hash);
+  }
+
+  // ---------- theme ----------
+  const themeSelect = $('#mdv-theme');
+  function setTheme(name) {
+    if (!THEMES.includes(name)) name = 'auto';
+    root.dataset.theme = name;
+    store.set('theme', name);
+    if (themeSelect) themeSelect.value = name;
+    renderMermaid();
+  }
+  if (themeSelect) {
+    themeSelect.value = root.dataset.theme || 'auto';
+    themeSelect.addEventListener('change', () => setTheme(themeSelect.value));
+  }
+  function cycleTheme() {
+    const i = THEMES.indexOf(root.dataset.theme || 'auto');
+    setTheme(THEMES[(i + 1) % THEMES.length]);
+  }
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if ((root.dataset.theme || 'auto') === 'auto') renderMermaid();
+  });
+
+  // ---------- reading settings: typeface, size, width, spacing, code font ----------
+  const settingsBtn = $('#mdv-settings-btn');
+  const settings = $('#mdv-settings');
+  const sizeVal = $('#mdv-size-val');
+  const PREFS = { font: 'charter', width: 'normal', leading: 'normal', mono: 'sfmono' };
+
+  function currentSize() {
+    return parseInt(getComputedStyle(root).getPropertyValue('--size'), 10) || SIZE_DEFAULT;
+  }
+  function changeSize(delta) {
+    const next = Math.min(SIZE_MAX, Math.max(SIZE_MIN, currentSize() + delta));
+    root.style.setProperty('--size', next + 'px');
+    store.set('size', String(next));
+    syncSettings();
+  }
+  function setPref(name, value) {
+    root.dataset[name] = value;
+    store.set(name, value);
+    syncSettings();
+  }
+  function syncSettings() {
+    for (const name of Object.keys(PREFS)) {
+      $$(`[data-${name}]`, settings).forEach((b) => b.setAttribute('aria-checked', String(b.dataset[name] === root.dataset[name])));
+    }
+    sizeVal.textContent = currentSize() + 'px';
+  }
+  function openSettings(open = settings.hidden) {
+    settings.hidden = !open;
+    settingsBtn.setAttribute('aria-expanded', String(open));
+    if (open) ($('[aria-checked="true"]', settings) || $('button', settings)).focus();
+  }
+  // Hide system fonts this browser can't use (Chrome can't reach Apple's New York, for one),
+  // by checking whether the face changes text width compared with two generic fallbacks.
+  (function hideMissingFonts() {
+    const ctx = document.createElement('canvas').getContext('2d');
+    const sample = 'Handgloves 0123 The quick brown fox';
+    const width = (font) => { ctx.font = `32px ${font}`; return ctx.measureText(sample).width; };
+    $$('.font-grid button[data-font]:not([data-bundled])', settings).forEach((b) => {
+      const first = b.style.fontFamily.split(',')[0].trim();
+      if (/^(system-ui|-apple-system|ui-)/.test(first)) return;
+      const present = width(`${first}, monospace`) !== width('monospace') || width(`${first}, serif`) !== width('serif');
+      if (!present) b.hidden = true;
+    });
+  })();
+
+  settingsBtn.addEventListener('click', () => openSettings());
+  settings.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.step) return changeSize(Number(b.dataset.step));
+    if (b.id === 'mdv-settings-reset') {
+      for (const [name, value] of Object.entries(PREFS)) setPref(name, value);
+      root.style.removeProperty('--size');
+      store.set('size', '');
+      return syncSettings();
+    }
+    for (const name of Object.keys(PREFS)) if (b.dataset[name]) setPref(name, b.dataset[name]);
+  });
+  document.addEventListener('click', (e) => {
+    if (!settings.hidden && !e.target.closest('#mdv-settings, #mdv-settings-btn')) openSettings(false);
+  });
+  settings.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { openSettings(false); settingsBtn.focus(); }
+  });
+  syncSettings();
+
+  // ---------- sidebar ----------
+  const sidebar = $('#mdv-sidebar');
+  const narrow = matchMedia('(max-width: 860px)');
+  function toggleSidebar(force) {
+    if (!sidebar) return;
+    if (narrow.matches) {
+      const open = force ?? !document.body.classList.contains('side-open');
+      document.body.classList.toggle('side-open', open);
+    } else {
+      const closed = force === undefined ? root.dataset.sidebar !== 'closed' : !force;
+      if (closed) root.dataset.sidebar = 'closed';
+      else delete root.dataset.sidebar;
+      store.set('sidebar', closed ? 'closed' : 'open');
+    }
+  }
+  $('#mdv-toggle-sidebar')?.addEventListener('click', () => toggleSidebar());
+  document.addEventListener('click', (e) => {
+    if (narrow.matches && document.body.classList.contains('side-open') &&
+        !e.target.closest('#mdv-sidebar, #mdv-toggle-sidebar')) toggleSidebar(false);
+  });
+
+  if (sidebar) {
+    try {
+      const saved = sessionStorage.getItem('mdv.sideScroll');
+      if (saved) sidebar.scrollTop = Number(saved);
+      addEventListener('pagehide', () => { try { sessionStorage.setItem('mdv.sideScroll', String(sidebar.scrollTop)); } catch { /* blocked */ } });
+    } catch { /* storage blocked */ }
+    $('[aria-current="page"]', sidebar)?.scrollIntoView({ block: 'nearest' });
+
+    sidebar.addEventListener('input', (e) => { if (e.target.id === 'mdv-filter') applyFilter(); });
+    sidebar.addEventListener('keydown', (e) => {
+      if (e.target.id !== 'mdv-filter') return;
+      if (e.key === 'Enter') {
+        const first = $$('.tree-file:not([hidden]) a', sidebar)[0];
+        if (first) location.href = first.href;
+      } else if (e.key === 'Escape') {
+        e.target.value = '';
+        applyFilter();
+        e.target.blur();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        $$('.tree-file:not([hidden]) a', sidebar)[0]?.focus();
+      }
+    });
+  }
+
+  function applyFilter() {
+    const input = $('#mdv-filter');
+    const tree = $('#mdv-tree');
+    if (!input || !tree) return;
+    const q = input.value.trim().toLowerCase();
+    const terms = q.split(/\s+/).filter(Boolean);
+    let shown = 0;
+    $$('.tree-file', tree).forEach((li) => {
+      const a = $('a', li);
+      // Match against the path inside the opened folder, so "guides api" finds guides/api.md.
+      const hay = decodeURIComponent(a.getAttribute('href')).slice(('/view' + (boot.root || '')).length).toLowerCase();
+      const ok = terms.every((t) => hay.includes(t));
+      li.hidden = !ok;
+      if (ok) shown++;
+    });
+    // Collapse dirs with no visible files; open everything while filtering.
+    $$('.tree-dir', tree).reverse().forEach((li) => {
+      const any = $$('.tree-file', li).some((f) => !f.hidden);
+      li.hidden = !any;
+      const d = $('details', li);
+      if (q) {
+        if (!d.dataset.wasOpen) d.dataset.wasOpen = d.open ? '1' : '0';
+        d.open = true;
+      } else if (d.dataset.wasOpen) {
+        d.open = d.dataset.wasOpen === '1';
+        delete d.dataset.wasOpen;
+      }
+    });
+    const none = $('#mdv-tree-none');
+    if (none) none.hidden = shown > 0;
+  }
+
+  // ---------- resizable panes ----------
+  // sign: +1 when dragging right grows the pane (sidebar), -1 when its handle is on the left (TOC).
+  function makeResizer(handle, { prop, key, min, max, def, sign }) {
+    if (!handle) return;
+    const read = () => parseInt(getComputedStyle(root).getPropertyValue(prop), 10) || def;
+    const clamp = (px) => Math.round(Math.min(max, Math.max(min, px)));
+    const write = (px, save = true) => {
+      px = clamp(px);
+      root.style.setProperty(prop, px + 'px');
+      handle.setAttribute('aria-valuenow', String(px));
+      if (save) store.set(key, String(px));
+    };
+    handle.setAttribute('aria-valuemin', String(min));
+    handle.setAttribute('aria-valuemax', String(max));
+    handle.setAttribute('aria-valuenow', String(read()));
+
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      const x0 = e.clientX, w0 = read();
+      handle.classList.add('active');
+      document.body.classList.add('resizing');
+      const move = (ev) => write(w0 + sign * (ev.clientX - x0), false);
+      const end = () => {
+        handle.removeEventListener('pointermove', move);
+        handle.removeEventListener('pointerup', end);
+        handle.removeEventListener('pointercancel', end);
+        handle.classList.remove('active');
+        document.body.classList.remove('resizing');
+        write(read());
+      };
+      handle.addEventListener('pointermove', move);
+      handle.addEventListener('pointerup', end);
+      handle.addEventListener('pointercancel', end);
+    });
+    handle.addEventListener('dblclick', () => {
+      root.style.removeProperty(prop);
+      store.del(key);
+      handle.setAttribute('aria-valuenow', String(read()));
+    });
+    handle.addEventListener('keydown', (e) => {
+      const step = e.shiftKey ? 48 : 16;
+      if (e.key === 'ArrowLeft') write(read() - sign * step);
+      else if (e.key === 'ArrowRight') write(read() + sign * step);
+      else if (e.key === 'Home' || e.key === 'Enter') handle.dispatchEvent(new Event('dblclick'));
+      else return;
+      e.preventDefault();
+    });
+  }
+  makeResizer($('#mdv-side-resizer'), { prop: '--side-w', key: 'sideW', min: 180, max: 560, def: 268, sign: 1 });
+  makeResizer($('#mdv-toc-resizer'), { prop: '--toc-w', key: 'tocW', min: 160, max: 440, def: 240, sign: -1 });
+
+  // ---------- table of contents ----------
+  let tocObserver = null;
+  // The side rail is the sticky layout from the CSS container query; ask the layout, not a width.
+  const tocIsRail = () => getComputedStyle($('#mdv-toc-wrap')).position === 'sticky';
+  function setupToc() {
+    tocObserver?.disconnect();
+    const toc = $('#mdv-toc');
+    if (!toc) return;
+    toc.open = tocIsRail();
+    const links = new Map($$('a', toc).map((a) => [decodeURIComponent(a.hash.slice(1)), a]));
+    const heads = $$('#mdv-doc h2[id], #mdv-doc h3[id], #mdv-doc h4[id]').filter((h) => links.has(h.id));
+    if (!heads.length || !('IntersectionObserver' in window)) return;
+    const visible = new Set();
+    tocObserver = new IntersectionObserver((entries) => {
+      entries.forEach((e) => (e.isIntersecting ? visible.add(e.target) : visible.delete(e.target)));
+      let current = heads.find((h) => visible.has(h));
+      if (!current) {
+        // Between headings: use the last one above the viewport.
+        current = heads.filter((h) => h.getBoundingClientRect().top < 120).pop() || heads[0];
+      }
+      links.forEach((a) => a.classList.remove('active'));
+      links.get(current.id)?.classList.add('active');
+    }, { rootMargin: '-60px 0px -60% 0px' });
+    heads.forEach((h) => tocObserver.observe(h));
+  }
+  let lastWide = null;
+  new ResizeObserver(() => {
+    const toc = $('#mdv-toc');
+    if (!toc) return;
+    const w = tocIsRail();
+    if (w !== lastWide) { toc.open = w; lastWide = w; }
+  }).observe($('#mdv-content'));
+
+  // ---------- copy buttons ----------
+  $('#mdv-doc').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.code-copy');
+    if (!btn) return;
+    const code = btn.closest('.code-block').querySelector('pre code');
+    // Console blocks copy just the commands; prompts are CSS-only so they never get copied.
+    const cmds = $$('.line.cmd, .line.cont', code);
+    const text = $('.line.out', code) && cmds.length ? cmds.map((l) => l.textContent).join('\n') : code.textContent;
+    try {
+      await navigator.clipboard.writeText(text.replace(/\n$/, ''));
+      btn.textContent = 'Copied';
+    } catch {
+      btn.textContent = 'Press ⌘C';
+      const range = document.createRange();
+      range.selectNodeContents(code);
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    btn.classList.add('done');
+    clearTimeout(btn._t);
+    btn._t = setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1600);
+  });
+
+  // ---------- fold long code blocks ----------
+  const FOLD_AT = 30, FOLD_TO = 18;
+  function setupFolds() {
+    $$('#mdv-doc .code-block').forEach((block) => {
+      const lines = Number(block.dataset.lines) || 0;
+      if (lines <= FOLD_AT || block.querySelector('.code-more')) return;
+      block.style.setProperty('--fold-lines', FOLD_TO);
+      block.classList.add('is-folded');
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'code-more';
+      more.textContent = `Show all ${lines} lines`;
+      more.setAttribute('aria-expanded', 'false');
+      more.addEventListener('click', () => {
+        const folded = block.classList.toggle('is-folded');
+        more.textContent = folded ? `Show all ${lines} lines` : 'Show less';
+        more.setAttribute('aria-expanded', String(!folded));
+        if (folded && block.getBoundingClientRect().top < 0) block.scrollIntoView({ block: 'start' });
+      });
+      block.append(more);
+    });
+  }
+
+  // ---------- mermaid (loaded only when a page needs it) ----------
+  let mermaidLoading = null;
+  function loadMermaid() {
+    if (window.mermaid) return Promise.resolve(window.mermaid);
+    if (!mermaidLoading) {
+      mermaidLoading = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = '/_mdv/mermaid.min.js';
+        s.onload = () => resolve(window.mermaid);
+        s.onerror = () => reject(new Error('Could not load mermaid'));
+        document.head.appendChild(s);
+      });
+    }
+    return mermaidLoading;
+  }
+
+  function cssVar(name) { return getComputedStyle(root).getPropertyValue(name).trim(); }
+  function isDark() {
+    const t = root.dataset.theme || 'auto';
+    return DARK_THEMES.includes(t) || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+
+  // Renders are serialized: mermaid.run() isn't safe to overlap, and a quick
+  // double theme switch would otherwise leave half-drawn diagrams.
+  let mermaidBusy = null, mermaidAgain = false, mermaidSeq = 0;
+  function renderMermaid() {
+    if (mermaidBusy) { mermaidAgain = true; return mermaidBusy; }
+    mermaidBusy = (async () => {
+      do { mermaidAgain = false; await renderMermaidOnce(); } while (mermaidAgain);
+      mermaidBusy = null;
+    })();
+    return mermaidBusy;
+  }
+
+  async function renderMermaidOnce() {
+    const nodes = $$('#mdv-doc pre.mermaid');
+    if (!nodes.length) return;
+    nodes.forEach((n) => { if (n.dataset.src === undefined) n.dataset.src = n.textContent; });
+    let mermaid;
+    try {
+      mermaid = await loadMermaid();
+    } catch (err) {
+      nodes.forEach((n) => { n.setAttribute('data-processed', 'true'); n.classList.add('mermaid-error'); });
+      return;
+    }
+    const bg = cssVar('--bg'), fg = cssVar('--fg'), code = cssVar('--code-bg'), rule = cssVar('--rule-strong');
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: 'base',
+      fontFamily: cssVar('--sans'),
+      themeVariables: {
+        darkMode: isDark(),
+        background: bg,
+        fontFamily: cssVar('--sans'),
+        primaryColor: code,
+        primaryTextColor: fg,
+        primaryBorderColor: rule,
+        secondaryColor: cssVar('--icode-bg'),
+        tertiaryColor: bg,
+        lineColor: cssVar('--muted'),
+        textColor: fg,
+        mainBkg: code,
+        nodeBorder: rule,
+        clusterBkg: bg,
+        clusterBorder: rule,
+        edgeLabelBackground: bg,
+        noteBkgColor: cssVar('--icode-bg'),
+        noteTextColor: fg,
+        noteBorderColor: rule,
+        actorBkg: code,
+        actorBorder: rule,
+        actorTextColor: fg,
+        signalColor: fg,
+        signalTextColor: fg,
+        labelBoxBkgColor: code,
+        labelTextColor: fg,
+      },
+    });
+    // render() into a fresh id each time; re-running mermaid.run() on already
+    // processed nodes leaves stale state behind and garbles the redraw.
+    for (const n of nodes) {
+      try {
+        const { svg, bindFunctions } = await mermaid.render('mdv-mermaid-' + (++mermaidSeq), n.dataset.src);
+        n.innerHTML = svg;
+        bindFunctions?.(n);
+        n.classList.remove('mermaid-error');
+      } catch (err) {
+        n.classList.add('mermaid-error');
+        n.textContent = 'Mermaid: ' + (err && err.message ? err.message : err) + '\n\n' + n.dataset.src;
+      }
+      n.setAttribute('data-processed', 'true');
+    }
+  }
+
+  // ---------- live reload ----------
+  const live = $('#mdv-live');
+  function connect() {
+    if (!boot.file && !boot.root) return;
+    const qs = new URLSearchParams();
+    if (boot.file) qs.set('file', boot.file);
+    if (boot.root) qs.set('root', boot.root);
+    const es = new EventSource('/events?' + qs);
+    es.addEventListener('open', () => { live.className = 'live on'; live.title = 'Live reload is on'; });
+    es.addEventListener('error', () => {
+      live.className = 'live off';
+      // CLOSED means the server answered but refused (e.g. this browser isn't signed in to mdv).
+      if (es.readyState === EventSource.CLOSED) {
+        live.title = 'Live reload stopped. Run mdv again to reconnect.';
+        toast('Live reload stopped. Run mdv again to reconnect.');
+      } else {
+        live.title = 'Reconnecting to mdv…';
+      }
+    });
+    es.addEventListener('change', (e) => {
+      const data = JSON.parse(e.data);
+      const y = scrollY;
+      $('#mdv-doc').innerHTML = data.html;
+      $('#mdv-toc-slot').innerHTML = data.toc;
+      document.title = data.title;
+      setupToc();
+      setupFolds();
+      updateReadTime();
+      scrollTo(0, y);
+      updateProgress();
+      if (data.hasMermaid) renderMermaid().then(() => scrollTo(0, y));
+    });
+    es.addEventListener('tree', (e) => {
+      if (!sidebar) return;
+      const data = JSON.parse(e.data);
+      const q = $('#mdv-filter')?.value || '';
+      const focused = document.activeElement?.id === 'mdv-filter';
+      const top = sidebar.scrollTop;
+      sidebar.innerHTML = data.html;
+      const input = $('#mdv-filter');
+      if (input) {
+        input.value = q;
+        if (focused) input.focus();
+      }
+      applyFilter();
+      sidebar.scrollTop = top;
+      buildDocNav();
+    });
+  }
+
+  // ---------- toast ----------
+  const toastEl = $('#mdv-toast');
+  let toastTimer;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
+  }
+
+  // ---------- reading time & progress ----------
+  const readTime = $('#mdv-read-time');
+  const progress = $('#mdv-progress');
+  function updateReadTime() {
+    if (!readTime) return;
+    // Count prose only: code, diagrams and footnotes don't add reading time.
+    let text = '';
+    const walker = document.createTreeWalker($('#mdv-doc'), NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.parentElement.closest('pre, .mermaid-block, .footnotes') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    while (walker.nextNode()) text += walker.currentNode.nodeValue + ' ';
+    const words = (text.match(/\S+/g) || []).length;
+    if (!boot.file || words < 60) { readTime.textContent = ''; return; }
+    readTime.textContent = Math.max(1, Math.round(words / 230)) + ' min read';
+    readTime.title = words.toLocaleString() + ' words';
+  }
+  let progressQueued = false;
+  function updateProgress() {
+    progressQueued = false;
+    const max = document.documentElement.scrollHeight - innerHeight;
+    progress.style.setProperty('--progress', max > 40 ? Math.min(1, Math.max(0, scrollY / max)).toFixed(4) : '0');
+  }
+  addEventListener('scroll', () => {
+    if (!progressQueued) { progressQueued = true; requestAnimationFrame(updateProgress); }
+  }, { passive: true });
+  addEventListener('resize', updateProgress);
+
+  // ---------- previous / next file (folder mode) ----------
+  function neighbors() {
+    const links = sidebar ? $$('.tree-file a', sidebar) : [];
+    const i = links.findIndex((a) => a.getAttribute('aria-current') === 'page');
+    return i < 0 ? { prev: null, next: links[0] || null } : { prev: links[i - 1] || null, next: links[i + 1] || null };
+  }
+  function buildDocNav() {
+    const nav = $('#mdv-doc-nav');
+    nav.textContent = '';
+    if (!boot.file || !sidebar) return;
+    const { prev, next } = neighbors();
+    const make = (a, cls, label) => {
+      const el = document.createElement('a');
+      el.href = a.href;
+      el.className = cls;
+      el.rel = cls;
+      const small = document.createElement('small');
+      small.textContent = label;
+      const name = document.createElement('span');
+      name.textContent = a.textContent;
+      el.append(small, name);
+      return el;
+    };
+    if (prev) nav.append(make(prev, 'prev', '← Previous'));
+    if (next) nav.append(make(next, 'next', 'Next →'));
+  }
+  function go(which) {
+    const target = neighbors()[which];
+    if (target) location.href = target.href;
+  }
+
+  // ---------- open in editor / reveal in Finder ----------
+  async function openIn(kind) {
+    if (!boot.file) return;
+    try {
+      const r = await fetch('/api/' + kind, {
+        method: 'POST',
+        headers: { 'X-MDV': '1', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: boot.file }),
+      });
+      toast(!r.ok ? 'Couldn’t open this file' : kind === 'edit' ? 'Opening in your editor…' : 'Showing in Finder…');
+    } catch {
+      toast('mdv isn’t running');
+    }
+  }
+  $('#mdv-edit-btn')?.addEventListener('click', () => openIn('edit'));
+
+  // ---------- help, image zoom, heading links ----------
+  const help = $('#mdv-help');
+  $('#mdv-help-btn').addEventListener('click', () => help.showModal());
+  $('.help-head button', help).addEventListener('click', (e) => { e.preventDefault(); help.close(); });
+  help.addEventListener('click', (e) => { if (e.target === help) help.close(); });
+
+  const zoom = $('#mdv-zoom');
+  const zoomImg = $('img', zoom);
+  zoom.addEventListener('click', () => zoom.close());
+  $('#mdv-doc').addEventListener('click', (e) => {
+    const img = e.target.closest('img');
+    if (img && !img.closest('a, .mermaid-block')) {
+      zoomImg.src = img.currentSrc || img.src;
+      zoomImg.alt = img.alt;
+      zoom.showModal();
+      return;
+    }
+    const anchor = e.target.closest('a.anchor');
+    if (anchor && navigator.clipboard) {
+      navigator.clipboard.writeText(location.origin + location.pathname + anchor.hash).then(() => toast('Link copied'), () => {});
+    }
+  });
+
+  // ---------- keyboard ----------
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target;
+    if (t.closest && t.closest('input, textarea, select, [contenteditable]')) return;
+    if (document.querySelector('dialog[open]')) return; // Esc closes dialogs natively
+    if (!settings.hidden && e.target.closest('#mdv-settings')) return;
+    // Some keyboard layouts report Shift+/ as '/' with shiftKey rather than '?'.
+    const key = e.key === '/' && e.shiftKey ? '?' : e.key;
+    switch (key) {
+      case 't': cycleTheme(); break;
+      case '[': toggleSidebar(); break;
+      case '/': {
+        const input = $('#mdv-filter');
+        if (!input) return;
+        e.preventDefault();
+        toggleSidebar(true);
+        input.focus();
+        input.select();
+        break;
+      }
+      case 'n': go('next'); break;
+      case 'p': go('prev'); break;
+      case 'e': openIn('edit'); break;
+      case 'r': openIn('reveal'); break;
+      case '?': help.showModal(); break;
+      case 's': openSettings(); break;
+      case '+': case '=': changeSize(1); break;
+      case '-': case '_': changeSize(-1); break;
+      case 'Escape': if (narrow.matches) toggleSidebar(false); break;
+      default: return;
+    }
+  });
+
+  setupToc();
+  setupFolds();
+  updateReadTime();
+  updateProgress();
+  buildDocNav();
+  if (boot.hasMermaid) renderMermaid();
+  connect();
+})();
