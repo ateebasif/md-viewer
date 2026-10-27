@@ -1,0 +1,32 @@
+# Dependencies (reinstalled by install.sh). Root only: sample/node_modules is a
+# test fixture that checks the sidebar skips node_modules folders.
+/node_modules/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Icon?
+
+# Build output (install.sh builds these into ~/Applications, but just in case)
+*.app/
+*.iconset/
+*.icns
+
+# Logs and scratch
+*.log
+npm-debug.log*
+bun-debug.log*
+*.tmp
+*.bak
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Local environment
+.env
+.env.*
