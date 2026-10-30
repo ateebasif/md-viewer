@@ -203,9 +203,11 @@ once.
 **Backlinks.** At the end of each document, **Linked from** lists the other files in the
 folder that link to it, with the line that contains the link.
 
-**Link previews.** Hover a link to another Markdown file, or to a heading on this page, and
-a card shows that section (or the start of the document) without leaving the page. It also
-works when a link has keyboard focus. Press `Esc` or move away to close it.
+**Link previews.** Hover a link to another Markdown file, or to a heading, and a card shows
+that whole section (or the document from the top) without leaving the page. Move the mouse
+into the card and scroll to keep reading; the page behind it stays still. **Open document →**
+or **Go to section →** at the bottom jumps there. It also works when a link has keyboard
+focus. Press `Esc` or move away to close it.
 
 **Broken links.** Links to a file that doesn't exist, or to a heading that isn't there (in
 another file or on the same page), get a wavy underline and a ⚠ with the reason on hover.

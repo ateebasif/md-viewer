@@ -1189,7 +1189,10 @@
     return previewCache.get(url);
   }
 
-  // Up to ~700 characters of blocks: a heading's section, or the opening of a document.
+  // A heading's whole section, or the opening of a document, capped so huge files stay quick.
+  // The card scrolls, so this can be generous.
+  const PREVIEW_CHARS = 12000;
+  const PREVIEW_BLOCKS = 60;
   function excerpt(root, hash) {
     let start = null;
     let level = 7;
@@ -1214,7 +1217,7 @@
     }
     const blocks = [];
     let chars = 0;
-    for (let el = start; el && chars < 700 && blocks.length < 5; el = el.nextElementSibling) {
+    for (let el = start; el && chars < PREVIEW_CHARS && blocks.length < PREVIEW_BLOCKS; el = el.nextElementSibling) {
       if (/^H[1-6]$/.test(el.tagName) && Number(el.tagName[1]) <= level) break;
       if (el.matches('section.footnotes')) break;
       blocks.push(el.cloneNode(true));
@@ -1265,7 +1268,14 @@
     previewEl.innerHTML = `<div class="preview-head"><span class="preview-title">${esc(ex.heading || title)}</span>` +
       (ex.heading && !t.same ? `<span class="preview-where">${esc(title)}</span>` : where ? `<span class="preview-where">${esc(where)}</span>` : '') + '</div>';
     if (ex.blocks.length) previewEl.append(body);
+    const open = document.createElement('a');
+    open.className = 'preview-open';
+    open.href = (t.same ? '' : t.url) + (t.hash ? '#' + t.hash : '');
+    open.textContent = (t.hash ? 'Go to section' : 'Open document') + ' →';
+    open.addEventListener('click', () => hidePreview(true));
+    previewEl.append(open);
     previewEl.hidden = false;
+    body.scrollTop = 0;
     placePreview(a);
   }
 

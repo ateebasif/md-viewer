@@ -975,16 +975,24 @@ body.resizing iframe, body.resizing .prose { pointer-events: none; }
 
 /* ---------- link hover previews ---------- */
 .preview {
-  position: fixed; z-index: 55; width: min(420px, calc(100vw - 24px)); max-height: 320px; overflow: hidden;
-  padding: 12px 16px 14px; border: 1px solid var(--rule-strong); border-radius: 10px;
+  position: fixed; z-index: 55; width: min(440px, calc(100vw - 24px)); max-height: min(380px, calc(100vh - 32px));
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--rule-strong); border-radius: 10px;
   background: var(--bg); color: var(--fg); box-shadow: 0 16px 44px rgba(0, 0, 0, .2);
 }
 .preview[hidden] { display: none; }
-.preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 36px; background: linear-gradient(transparent, var(--bg)); pointer-events: none; }
-.preview-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; font-family: var(--sans); }
+.preview-head { flex-shrink: 0; display: flex; align-items: baseline; gap: 8px; padding: 12px 16px 8px; font-family: var(--sans); border-bottom: 1px solid var(--rule); }
 .preview-title { font-weight: 650; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .preview-where { font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.preview-body.prose { font-size: 14.5px; line-height: 1.55; }
+.preview-body.prose {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; /* scrolling the card never scrolls the page */
+  padding: 10px 16px 6px; font-size: 14.5px; line-height: 1.55; scrollbar-width: thin;
+}
+.preview-open {
+  flex-shrink: 0; display: block; padding: 8px 16px; border-top: 1px solid var(--rule);
+  font: 500 12.5px var(--sans); color: var(--link); text-decoration: none; text-align: right;
+}
+.preview-open:hover { background: var(--side); }
 .preview-body.prose > * { margin-bottom: 0.6em; }
 .preview-body.prose :is(h2, h3, h4) { font-size: 1.02em; margin: 0.6em 0 0.3em; border: 0; padding: 0; }
 .preview-body.prose .code-block { margin: 0.5em 0; }
