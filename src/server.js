@@ -191,7 +191,9 @@ function pruneWatchers() {
 function onFsEvent(dir, event, full) {
   for (const c of clients) {
     if (c.file && (full === null ? inside(c.file, dir) : full === c.file)) schedule(c, 'change');
-    if (c.root && (full === null || (inside(full, c.root) && event === 'rename'))) schedule(c, 'tree');
+    // The sidebar shows each file's modified time (for "updated since you read it"),
+    // so Markdown edits refresh it too, not just renames.
+    if (c.root && (full === null || (inside(full, c.root) && (event === 'rename' || isMarkdown(full))))) schedule(c, 'tree');
   }
 }
 

@@ -96,6 +96,7 @@
     const b = e.target.closest('button');
     if (!b) return;
     if (b.dataset.step) return changeSize(Number(b.dataset.step));
+    if (b.dataset.action === 'focus') { openSettings(false); return setFocus(true); }
     if (b.id === 'mdv-settings-reset') {
       for (const [name, value] of Object.entries(PREFS)) setPref(name, value);
       root.style.removeProperty('--size');
@@ -142,6 +143,12 @@
     $('[aria-current="page"]', sidebar)?.scrollIntoView({ block: 'nearest' });
 
     sidebar.addEventListener('input', (e) => { if (e.target.id === 'mdv-filter') applyFilter(); });
+    sidebar.addEventListener('click', (e) => {
+      if (!e.target.closest('#mdv-updated-chip')) return;
+      updatedOnly = !updatedOnly;
+      markUpdated();
+      applyFilter();
+    });
     sidebar.addEventListener('keydown', (e) => {
       if (e.target.id !== 'mdv-filter') return;
       if (e.key === 'Enter') {
@@ -158,6 +165,39 @@
     });
   }
 
+  // ---------- updated since you last read ----------
+  // Each visit records when you read a file; sidebar files modified after that get a dot,
+  // and the "N updated" chip filters the tree down to them.
+  let updatedOnly = false;
+  const MAX_READ = 500;
+  function markRead() {
+    if (!boot.file) return;
+    const read = readJSON('read', {});
+    read[location.pathname] = Date.now();
+    const keys = Object.keys(read);
+    if (keys.length > MAX_READ) keys.sort((a, b) => read[a] - read[b]).slice(0, keys.length - MAX_READ).forEach((k) => delete read[k]);
+    store.set('read', JSON.stringify(read));
+  }
+  function markUpdated() {
+    if (!sidebar) return;
+    const read = readJSON('read', {});
+    let count = 0;
+    $$('.tree-file a[data-mtime]', sidebar).forEach((a) => {
+      const seen = read[a.getAttribute('href')];
+      const updated = !!seen && a.getAttribute('aria-current') !== 'page' && Number(a.dataset.mtime) > seen + 1000;
+      a.classList.toggle('is-updated', updated);
+      if (updated) { a.title = 'Updated since you last read it'; count++; } else a.removeAttribute('title');
+    });
+    if (!count) updatedOnly = false;
+    const chip = $('#mdv-updated-chip');
+    if (chip) {
+      chip.hidden = !count;
+      chip.textContent = `${count} updated`;
+      chip.setAttribute('aria-pressed', String(updatedOnly));
+      chip.title = updatedOnly ? 'Show all files' : 'Show only files updated since you last read them';
+    }
+  }
+
   function applyFilter() {
     const input = $('#mdv-filter');
     const tree = $('#mdv-tree');
@@ -169,7 +209,7 @@
       const a = $('a', li);
       // Match against the path inside the opened folder, so "guides api" finds guides/api.md.
       const hay = decodeURIComponent(a.getAttribute('href')).slice(('/view' + (boot.root || '')).length).toLowerCase();
-      const ok = terms.every((t) => hay.includes(t));
+      const ok = terms.every((t) => hay.includes(t)) && (!updatedOnly || a.classList.contains('is-updated'));
       li.hidden = !ok;
       if (ok) shown++;
     });
@@ -178,7 +218,7 @@
       const any = $$('.tree-file', li).some((f) => !f.hidden);
       li.hidden = !any;
       const d = $('details', li);
-      if (q) {
+      if (q || updatedOnly) {
         if (!d.dataset.wasOpen) d.dataset.wasOpen = d.open ? '1' : '0';
         d.open = true;
       } else if (d.dataset.wasOpen) {
@@ -446,10 +486,13 @@
       document.title = data.title;
       setupToc();
       setupFolds();
+      setupSectionFolds();
+      setupTables();
       updateReadTime();
       scrollTo(0, y);
       updateProgress();
       if (before) markChanges(before); else clearChanges();
+      markRead();
       refreshLinks();
       if (data.hasMermaid) renderMermaid().then(() => scrollTo(0, y));
     });
@@ -465,6 +508,7 @@
         input.value = q;
         if (focused) input.focus();
       }
+      markUpdated();
       applyFilter();
       sidebar.scrollTop = top;
       buildDocNav();
@@ -753,6 +797,7 @@
     const context = i === -1 ? '' : core.slice(i, i + match.length + 40).replace(/\s+\S*$/, '');
     const found = findInDoc([context, match], match.replace(/\s+/g, ' ').trim().length);
     if (!found) return;
+    revealInFolds(found.range.startContainer.parentElement);
     found.range.startContainer.parentElement.scrollIntoView({
       block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
     });
@@ -830,6 +875,7 @@
     if (!changed.length) return;
     changeAt = (changeAt + dir + changed.length) % changed.length;
     const el = changed[changeAt];
+    revealInFolds(el);
     el.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     el.classList.remove('mdv-flash');
     void el.offsetWidth; // restart the flash
@@ -930,6 +976,184 @@
     }
   }, true);
 
+  // ---------- section folding ----------
+  // Fold a section by hiding the blocks between its heading and the next heading of the same
+  // or higher level. The DOM isn't restructured, so live-reload diffs and the TOC still work.
+  const foldedIds = new Set();
+  let foldAnchor = null; // heading kept in place by fold-all, reused when unfolding
+  const CHEVRON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const foldable = () => $$('#mdv-doc > :is(h2, h3, h4)');
+  function sectionOf(h) {
+    const level = Number(h.tagName[1]);
+    const out = [];
+    for (let el = h.nextElementSibling; el; el = el.nextElementSibling) {
+      if (/^H[1-6]$/.test(el.tagName) && Number(el.tagName[1]) <= level) break;
+      out.push(el);
+    }
+    return out;
+  }
+  function applyFolds() {
+    $$('#mdv-doc > .fold-hidden').forEach((el) => el.classList.remove('fold-hidden'));
+    foldable().filter((h) => h.classList.contains('is-folded')).forEach((h) => sectionOf(h).forEach((el) => el.classList.add('fold-hidden')));
+    updateProgress();
+  }
+  function setFold(h, fold) {
+    h.classList.toggle('is-folded', fold);
+    $('.fold-btn', h)?.setAttribute('aria-expanded', String(!fold));
+    if (h.id) { if (fold) foldedIds.add(h.id); else foldedIds.delete(h.id); }
+  }
+  function setupSectionFolds() {
+    foldable().forEach((h) => {
+      if (!$('.fold-btn', h)) {
+        h.insertAdjacentHTML('afterbegin', `<button type="button" class="fold-btn" aria-expanded="true" aria-label="Fold section" title="Fold section  f">${CHEVRON}</button>`);
+      }
+      setFold(h, foldedIds.has(h.id)); // keep folds across live reloads
+    });
+    applyFolds();
+  }
+  // Unfold whatever hides `el` (a search hit, a TOC jump, a change).
+  function revealInFolds(el) {
+    const block = el && el.closest('#mdv-doc > *');
+    if (!block) return;
+    let changedFold = false;
+    for (const h of foldable()) {
+      if (h.classList.contains('is-folded') && (h === block || sectionOf(h).includes(block)) && h !== block) { setFold(h, false); changedFold = true; }
+    }
+    if (changedFold) applyFolds();
+  }
+  function currentHeading() {
+    return foldable().filter((h) => !h.closest('.fold-hidden') && !h.classList.contains('fold-hidden') && h.getBoundingClientRect().top < 140).pop() || foldable()[0];
+  }
+  // Run a fold change while keeping `el` at the same spot on screen, so the heading you
+  // clicked never jumps; only the content below it opens or closes.
+  function keepInPlace(el, change) {
+    const before = el.getBoundingClientRect().top;
+    change();
+    const after = el.getBoundingClientRect().top;
+    if (after !== before) scrollBy(0, after - before);
+  }
+  function toggleFold(h) {
+    keepInPlace(h, () => {
+      setFold(h, !h.classList.contains('is-folded'));
+      applyFolds();
+    });
+  }
+  function toggleCurrentFold() {
+    const h = currentHeading();
+    if (!h) return;
+    toggleFold(h);
+    if (h.getBoundingClientRect().top < 0) h.scrollIntoView({ block: 'start' });
+  }
+  function toggleAllFolds() {
+    const heads = foldable();
+    const fold = !heads.some((h) => h.classList.contains('is-folded'));
+    // Folding all keeps the top-level sections visible as an outline.
+    const top = Math.min(...heads.map((h) => Number(h.tagName[1])));
+    // Anchor on a top-level heading (they stay visible either way): when folding, the one on
+    // screen nearest where you're reading; when unfolding, the same one, so it doesn't move.
+    const level = (h) => Number(h.tagName[1]);
+    const tops = heads.filter((h) => level(h) === top);
+    const onScreen = tops.filter((h) => { const y = h.getBoundingClientRect().top; return y >= 0 && y < innerHeight; });
+    const reading = innerHeight / 3;
+    let anchor = !fold && foldAnchor && document.contains(foldAnchor) ? foldAnchor : null;
+    if (!anchor) {
+      anchor = onScreen.sort((a, b) => Math.abs(a.getBoundingClientRect().top - reading) - Math.abs(b.getBoundingClientRect().top - reading))[0]
+        || tops.filter((h) => h.getBoundingClientRect().top < 0).pop() || tops[0];
+    }
+    foldAnchor = fold ? anchor : null;
+    keepInPlace(anchor, () => {
+      heads.forEach((h) => setFold(h, fold && level(h) === top));
+      applyFolds();
+    });
+    toast(fold ? 'Folded all sections · F to unfold' : 'Unfolded all sections');
+  }
+  $('#mdv-doc').addEventListener('click', (e) => {
+    const btn = e.target.closest('.fold-btn');
+    if (!btn) return;
+    e.preventDefault();
+    toggleFold(btn.parentElement);
+  });
+  function revealHash() {
+    if (!location.hash || location.hash.startsWith('#mdv-find=')) return;
+    let id = location.hash.slice(1);
+    try { id = decodeURIComponent(id); } catch { /* as written */ }
+    const el = document.getElementById(id);
+    if (el && el.closest('#mdv-doc') && (el.classList.contains('fold-hidden') || el.closest('.fold-hidden'))) {
+      revealInFolds(el);
+      el.scrollIntoView({ block: 'start' });
+    }
+  }
+  addEventListener('hashchange', revealHash);
+
+  // ---------- focus mode ----------
+  function setFocus(on) {
+    if (on) root.dataset.focus = 'on';
+    else { delete root.dataset.focus; delete root.dataset.focusBar; }
+    if (on) toast('Focus mode · z or Esc to leave');
+  }
+  document.addEventListener('mousemove', (e) => {
+    if (!root.dataset.focus) return;
+    if (e.clientY < 56) root.dataset.focusBar = 'show';
+    else if (e.clientY > 140 && !e.target.closest('.bar, .settings')) delete root.dataset.focusBar;
+  }, { passive: true });
+
+  // ---------- sortable tables ----------
+  // Click a header to sort ascending, again for descending, a third time for the original order.
+  const tableSorts = new Map(); // table index -> { col, dir }
+  function cellValue(row, col) {
+    const text = (row.cells[col]?.textContent || '').trim();
+    const num = text.replace(/[,\s%$€£¥]/g, '');
+    return { text, num: /^[-+]?\d*\.?\d+(e[-+]?\d+)?$/i.test(num) ? parseFloat(num) : null };
+  }
+  function sortTable(table, index, col, dir) {
+    const body = table.tBodies[0];
+    const rows = [...body._mdvOrder];
+    if (dir) {
+      rows.sort((a, b) => {
+        const x = cellValue(a, col);
+        const y = cellValue(b, col);
+        const r = x.num !== null && y.num !== null ? x.num - y.num
+          : x.text.localeCompare(y.text, undefined, { numeric: true, sensitivity: 'base' });
+        return dir === 'asc' ? r : -r;
+      });
+      tableSorts.set(index, { col, dir });
+    } else {
+      tableSorts.delete(index);
+    }
+    body.append(...rows);
+    $$('thead th', table).forEach((th, i) => th.setAttribute('aria-sort', i === col && dir ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'));
+  }
+  function setupTables() {
+    $$('#mdv-doc table').forEach((table, index) => {
+      const heads = $$('thead th', table);
+      if (!heads.length || !table.tBodies[0] || table.tBodies[0].rows.length < 2) return;
+      table.tBodies[0]._mdvOrder = [...table.tBodies[0].rows];
+      heads.forEach((th) => {
+        th.classList.add('sortable');
+        th.tabIndex = 0;
+        th.setAttribute('aria-sort', 'none');
+        th.title = 'Sort by this column';
+      });
+      const saved = tableSorts.get(index);
+      if (saved) sortTable(table, index, saved.col, saved.dir);
+    });
+  }
+  function onSortHeader(th) {
+    const table = th.closest('table');
+    const index = $$('#mdv-doc table').indexOf(table);
+    const col = [...th.parentElement.children].indexOf(th);
+    const cur = th.getAttribute('aria-sort');
+    sortTable(table, index, col, cur === 'ascending' ? 'desc' : cur === 'descending' ? null : 'asc');
+  }
+  $('#mdv-doc').addEventListener('click', (e) => {
+    const th = e.target.closest('th.sortable');
+    if (th) onSortHeader(th);
+  });
+  $('#mdv-doc').addEventListener('keydown', (e) => {
+    const th = e.target.closest('th.sortable');
+    if (th && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSortHeader(th); }
+  });
+
   // ---------- keyboard ----------
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -953,6 +1177,9 @@
       }
       case 'n': go('next'); break;
       case 'c': stepChange(1); break;
+      case 'f': toggleCurrentFold(); break;
+      case 'F': toggleAllFolds(); break;
+      case 'z': setFocus(!root.dataset.focus); break;
       case 'C': stepChange(-1); break;
       case 'p': go('prev'); break;
       case 'e': openIn('edit'); break;
@@ -961,18 +1188,23 @@
       case 's': openSettings(); break;
       case '+': case '=': changeSize(1); break;
       case '-': case '_': changeSize(-1); break;
-      case 'Escape': if (narrow.matches) toggleSidebar(false); break;
+      case 'Escape': if (root.dataset.focus) setFocus(false); else if (narrow.matches) toggleSidebar(false); break;
       default: return;
     }
   });
 
   setupToc();
   setupFolds();
+  setupSectionFolds();
+  setupTables();
   updateReadTime();
   updateProgress();
   buildDocNav();
+  revealHash();
   applyHash();
   rememberRecent();
+  markRead();
+  markUpdated();
   resumePosition();
   refreshLinks();
   if (boot.hasMermaid) renderMermaid();

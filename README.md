@@ -36,7 +36,10 @@ mdv                # the current folder
 - **⌘K search across a folder.** File names, headings and full text, ranked, with
   highlighted snippets. Enter jumps straight to the section or the exact passage.
 - **Folders.** A sidebar lists every Markdown file, with filtering (`/`), next/previous
-  navigation and a sticky table of contents.
+  navigation and a sticky table of contents. Files that changed since you last read them
+  get a dot.
+- **Fold sections, focus mode, sortable tables.** Collapse a long doc to its outline, hide
+  everything but the text, and click a table header to sort.
 - **Everything GitHub renders:** tables, task lists, footnotes, alerts (`[!NOTE]`,
   `[!WARNING]`…), Mermaid diagrams, heading anchors and front matter.
 - **Code that's easy to scan.** Syntax highlighting, copy buttons, `$` prompts on shell
@@ -135,6 +138,8 @@ isn't listed), then click **Change All…**.
 | `[` | Show or hide the sidebar |
 | `n` / `p` | Next or previous file in the folder |
 | `c` / `⇧C` | Next or previous change after a live reload |
+| `f` / `⇧F` | Fold the current section / fold everything to an outline |
+| `z` | Focus mode (`z` or `Esc` to leave) |
 | `e` | Open the file in your editor |
 | `r` | Reveal the file in Finder |
 | `+` / `-` | Larger or smaller text |
@@ -175,6 +180,11 @@ Your scroll position stays put while this happens.
 Reloads and section links still go where you'd expect. With nothing typed, ⌘K shows your
 recently opened documents.
 
+**Updated since you last read.** mdv remembers when you last opened each file. In the
+sidebar, files modified since then get a dot, and the **N updated** chip under the filter
+shows only those files. This is handy when an AI tool or a teammate edits several docs at
+once.
+
 **Backlinks.** At the end of each document, **Linked from** lists the other files in the
 folder that link to it, with the line that contains the link.
 
@@ -182,6 +192,18 @@ folder that link to it, with the line that contains the link.
 another file or on the same page), get a wavy underline and a ⚠ with the reason on hover.
 Missing images get a dashed outline. Open
 [`sample/guides/broken-links.md`](sample/guides/broken-links.md) to see it.
+
+## Reading long documents
+
+- **Fold sections.** Hover a heading and click its arrow, or press `f`, to collapse that
+  section. `⇧F` folds everything down to an outline of the top-level sections and unfolds it
+  again. Following a link, a search result or a change into a folded section opens it.
+- **Focus mode.** Press `z`, or use **Aa → Focus**, to hide the sidebar, the contents and
+  the top bar. Only the text and the reading-progress line stay. Move the mouse to the top
+  to bring the bar back, and press `z` or `Esc` to leave.
+- **Sortable tables.** Click a column header (or focus it and press `Enter`) to sort
+  ascending, again for descending, and a third time to go back to the original order.
+  Numbers sort as numbers, including `1,200`, `45%` and `$9`.
 
 ## Themes
 

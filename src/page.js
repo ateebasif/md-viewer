@@ -60,6 +60,7 @@ function settingsPanel() {
   <div class="set-row"><h3>Spacing</h3>${segmented('Leading', [['compact', 'Compact'], ['normal', 'Normal'], ['relaxed', 'Relaxed']])}</div>
   <div class="set-row"><h3>Code</h3><div class="seg-ctl" role="radiogroup" aria-label="Code font">${MONO_FONTS.map((f) =>
     `<button type="button" role="radio" data-mono="${f.id}" style="font-family:${escapeHtml(f.stack)}">${escapeHtml(f.label)}</button>`).join('')}</div></div>
+  <div class="set-row"><h3>Focus</h3><button type="button" class="set-focus" data-action="focus">Enter focus mode <kbd>z</kbd></button></div>
   <button type="button" class="set-reset" id="mdv-settings-reset">Reset to defaults</button>
 </div>`;
 }
@@ -76,7 +77,7 @@ export function treeHtml(node, current, depth = 0) {
   let out = '';
   for (const f of node.files) {
     const active = f.path === current ? ' aria-current="page"' : '';
-    out += `<li class="tree-file"><a href="${viewUrl(f.path)}"${active} data-name="${escapeHtml(f.name.toLowerCase())}">` +
+    out += `<li class="tree-file"><a href="${viewUrl(f.path)}"${active} data-name="${escapeHtml(f.name.toLowerCase())}" data-mtime="${Math.round(f.mtime || 0)}">` +
       `${escapeHtml(f.name.replace(/\.(md|markdown|mdown|mkdn?|mdx)$/i, ''))}</a></li>`;
   }
   for (const d of node.dirs) {
@@ -92,6 +93,7 @@ export function sidebarHtml(root, tree, current) {
   return `<div class="side-head">` +
     `<a class="side-root" href="${viewUrl(root, true)}" title="${escapeHtml(root)}">${escapeHtml(path.basename(root) || root)}</a>` +
     `<input type="search" id="mdv-filter" placeholder="Filter files" aria-label="Filter files" autocomplete="off" spellcheck="false"><kbd class="filter-hint">/</kbd></div>` +
+    `<button type="button" class="updated-chip" id="mdv-updated-chip" aria-pressed="false" hidden></button>` +
     (list ? `<ul class="tree" id="mdv-tree">${list}</ul><p class="tree-empty" id="mdv-tree-none" hidden>No matching files</p>`
       : `<p class="tree-empty">No Markdown files in this folder.</p>`);
 }
@@ -162,6 +164,8 @@ ${bootScript()}
     <div><dt><kbd>[</kbd></dt><dd>Show or hide the sidebar</dd></div>
     <div><dt><kbd>n</kbd> <kbd>p</kbd></dt><dd>Next or previous file</dd></div>
     <div><dt><kbd>c</kbd> <kbd>⇧C</kbd></dt><dd>Next or previous change after a live reload</dd></div>
+    <div><dt><kbd>f</kbd> <kbd>⇧F</kbd></dt><dd>Fold this section / fold all to an outline</dd></div>
+    <div><dt><kbd>z</kbd></dt><dd>Focus mode (hide everything but the text)</dd></div>
     <div><dt><kbd>e</kbd></dt><dd>Open in your editor</dd></div>
     <div><dt><kbd>r</kbd></dt><dd>Reveal in Finder</dd></div>
     <div><dt><kbd>s</kbd></dt><dd>Reading settings: typeface, size, width, spacing</dd></div>

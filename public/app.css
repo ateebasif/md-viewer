@@ -924,6 +924,55 @@ body.resizing iframe, body.resizing .prose { pointer-events: none; }
 .prose a.link-broken::after { content: "⚠"; font-size: 0.72em; margin-left: 0.2em; color: var(--caution); vertical-align: 0.15em; text-decoration: none; display: inline-block; }
 .prose img.img-broken { min-width: 140px; min-height: 48px; outline: 1px dashed var(--caution); outline-offset: 2px; }
 
+/* ---------- updated since you last read ---------- */
+.tree a.is-updated::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 7px; border-radius: 50%; background: var(--accent); vertical-align: 0.12em; }
+.updated-chip {
+  display: block; margin: -2px 0 10px 2px; padding: 3px 9px; border: 1px solid var(--rule); border-radius: 999px;
+  background: transparent; color: var(--muted); font: 500 12px var(--sans); cursor: pointer;
+}
+.updated-chip::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--accent); vertical-align: 0.1em; }
+.updated-chip:hover { color: var(--fg); border-color: var(--rule-strong); }
+.updated-chip[aria-pressed="true"] { color: var(--fg); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.updated-chip[hidden] { display: none; }
+
+/* ---------- section folding ---------- */
+.prose .fold-btn {
+  position: absolute; left: -1.5em; top: 50%; transform: translateY(-50%);
+  width: 1.1em; height: 1.1em; padding: 0; border: 0; border-radius: 4px; background: transparent;
+  color: var(--faint); cursor: pointer; opacity: 0; transition: opacity .15s, transform .15s;
+}
+.prose h2 .fold-btn { top: calc(50% - 0.18em); }
+.prose .fold-btn svg { width: 100%; height: 100%; display: block; }
+.prose :is(h2, h3, h4):hover > .fold-btn, .prose .fold-btn:focus-visible, .prose .is-folded > .fold-btn { opacity: 1; }
+.prose .fold-btn:hover { color: var(--fg); background: var(--rule); }
+.prose .is-folded > .fold-btn { transform: translateY(-50%) rotate(-90deg); color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .prose .fold-btn { transition: none; } }
+.prose .is-folded::after { content: "···"; margin-left: 0.4em; color: var(--faint); font-weight: 400; letter-spacing: 0.1em; }
+.prose .fold-hidden { display: none !important; }
+.prose { overflow-anchor: none; }
+
+/* ---------- focus mode ---------- */
+:root[data-focus] .sidebar, :root[data-focus] .pane-resizer, :root[data-focus] .toc-wrap,
+:root[data-focus] .doc-nav, :root[data-focus] .changes { display: none !important; }
+:root[data-focus] .bar { background: transparent; border-bottom-color: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+:root[data-focus] .bar > :not(.progress, .settings) { opacity: 0; pointer-events: none; transition: opacity .2s; }
+:root[data-focus][data-focus-bar] .bar { background: var(--bar); border-bottom-color: var(--rule); }
+:root[data-focus][data-focus-bar] .bar > :not(.progress, .settings) { opacity: 1; pointer-events: auto; }
+:root[data-focus] .page { grid-template-columns: minmax(0, 1fr) minmax(0, var(--measure)) minmax(0, 1fr) !important; }
+:root[data-focus] .main { padding-top: 72px; }
+.set-focus { padding: 5px 10px; border: 1px solid var(--rule); border-radius: 7px; background: transparent; color: var(--fg); font: 500 12.5px var(--sans); cursor: pointer; }
+.set-focus:hover { border-color: var(--rule-strong); background: var(--side); }
+.set-focus kbd { margin-left: 6px; font-size: 11px; }
+
+/* ---------- sortable tables ---------- */
+.prose th.sortable { cursor: pointer; user-select: none; -webkit-user-select: none; padding-right: 1.8em; position: relative; }
+.prose th.sortable:hover { color: var(--accent); }
+/* Always show a faint sort arrow so it's clear headers are clickable. */
+.prose th.sortable::after { content: "↕"; position: absolute; right: 0.6em; color: var(--faint); opacity: 0.55; font-weight: 400; }
+.prose th.sortable:hover::after, .prose th.sortable:focus-visible::after { opacity: 1; }
+.prose th[aria-sort="ascending"]::after { content: "↑"; opacity: 1; color: var(--accent); }
+.prose th[aria-sort="descending"]::after { content: "↓"; opacity: 1; color: var(--accent); }
+
 /* ---------- reading aids ---------- */
 .read-time { flex-shrink: 0; font-size: 12px; color: var(--faint); padding-left: 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .read-time:empty { display: none; }
@@ -976,6 +1025,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .35); }
   .prose, .toc-wrap, .doc-nav, .backlinks { grid-column: 1; }
   .changes { right: 12px; bottom: 12px; }
   .prose .mdv-changed::before { left: -10px; }
+  .prose .fold-btn { opacity: 1; left: auto; right: 0; position: absolute; }
   .prose { font-size: calc(var(--size) - 1px); }
 }
 @media (max-width: 520px) {

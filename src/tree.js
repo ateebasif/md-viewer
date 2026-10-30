@@ -30,7 +30,9 @@ export function listMarkdownTree(root) {
         const child = walk(full);
         if (child && (child.files.length || child.dirs.length)) node.dirs.push(child);
       } else if ((e.isFile() || e.isSymbolicLink()) && isMarkdown(e.name)) {
-        node.files.push({ name: e.name, path: full });
+        let mtime = 0;
+        try { mtime = fs.statSync(full).mtimeMs; } catch { /* broken symlink */ }
+        node.files.push({ name: e.name, path: full, mtime });
         count++;
       }
     }

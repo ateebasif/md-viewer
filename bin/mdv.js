@@ -41,7 +41,8 @@ In the browser
   t  cycle themes        /  filter files        [  show/hide sidebar
   n  next file           p  previous file       e  open in your editor
   r  reveal in Finder    s  reading settings    +  -  text size
-  c  next change after a live reload (⇧C previous)    ?  all shortcuts
+  c  next change after a live reload (⇧C previous)
+  f  fold this section (⇧F fold all)     z  focus mode     ?  all shortcuts
 
   The dot in the top bar is live reload: green = connected, amber = reconnecting.
   Drag the sidebar or contents edge to resize; double-click it to reset.
