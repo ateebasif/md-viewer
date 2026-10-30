@@ -148,6 +148,7 @@ ${bootScript()}
         <div id="mdv-toc-slot">${tocHtml(toc)}</div>
       </div>
       <article class="prose" id="mdv-doc">${content}</article>
+      <section class="backlinks" id="mdv-backlinks" aria-label="Linked from" hidden></section>
       <nav class="doc-nav" id="mdv-doc-nav" aria-label="Previous and next file"></nav>
     </div>
   </main>
@@ -160,6 +161,7 @@ ${bootScript()}
     <div><dt><kbd>/</kbd></dt><dd>Filter files</dd></div>
     <div><dt><kbd>[</kbd></dt><dd>Show or hide the sidebar</dd></div>
     <div><dt><kbd>n</kbd> <kbd>p</kbd></dt><dd>Next or previous file</dd></div>
+    <div><dt><kbd>c</kbd> <kbd>⇧C</kbd></dt><dd>Next or previous change after a live reload</dd></div>
     <div><dt><kbd>e</kbd></dt><dd>Open in your editor</dd></div>
     <div><dt><kbd>r</kbd></dt><dd>Reveal in Finder</dd></div>
     <div><dt><kbd>s</kbd></dt><dd>Reading settings: typeface, size, width, spacing</dd></div>
@@ -179,6 +181,12 @@ ${bootScript()}
 </dialog>
 <dialog class="zoom" id="mdv-zoom" aria-label="Image"><img alt=""></dialog>
 <div class="toast" id="mdv-toast" role="status" aria-live="polite"></div>
+<div class="changes" id="mdv-changes" role="status" aria-live="polite" hidden>
+  <span class="changes-dot" aria-hidden="true"></span><span id="mdv-changes-count"></span>
+  <button type="button" data-step="-1" aria-label="Previous change" title="Previous change  ⇧C">↑</button>
+  <button type="button" data-step="1" aria-label="Next change" title="Next change  c">↓</button>
+  <button type="button" data-close aria-label="Clear change highlights" title="Clear">×</button>
+</div>
 <script nonce="${nonce}" id="mdv-boot" type="application/json">${boot.replace(/</g, '\\u003c')}</script>
 <script src="/_mdv/app.js" defer></script>
 </body>

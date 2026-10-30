@@ -140,3 +140,13 @@ export function flattenTree(node, out = []) {
   for (const d of node.dirs) flattenTree(d, out);
   return out;
 }
+
+// Shared with links.js: the cached raw text and headings for one file.
+export function docEntry(file) {
+  return load(file);
+}
+
+export function docHeadings(file) {
+  const entry = load(file);
+  return entry ? headingsOf(entry, { left: 1 }) || [] : null;
+}

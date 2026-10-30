@@ -13,6 +13,7 @@ import { pageHtml, sidebarHtml, crumbsHtml, viewUrl, tocHtml } from './page.js';
 import { CONFIG_DIR, loadSecret, safeEqual } from './auth.js';
 import { FONT_PACKAGES } from './themes.js';
 import { search, flattenTree } from './search.js';
+import { linkReport } from './links.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT = path.resolve(HERE, '..');
@@ -609,6 +610,21 @@ async function handle(req, res) {
     return send(res, 200, JSON.stringify({
       count: files.length,
       results: results.map((x) => ({ ...x, url: viewUrl(x.file), file: undefined })),
+    }), 'application/json');
+  }
+
+  if (pathname === '/api/links') {
+    const f = resolveAllowed(url.searchParams.get('file') || '');
+    if (!f.real || !f.stat.isFile()) return send(res, 200, '{"backlinks":[],"broken":[]}', 'application/json');
+    const dirRoot = dirRootFor(f.real);
+    const base = dirRoot ? dirRoot.dir : path.dirname(f.real);
+    const files = dirRoot
+      ? flattenTree(listMarkdownTree(base)).filter((x) => { const a = resolveAllowed(x); return !a.error && a.stat.isFile(); })
+      : [];
+    const { backlinks, broken } = linkReport(f.real, files, base, resolveAllowed);
+    return send(res, 200, JSON.stringify({
+      backlinks: backlinks.map(({ file, ...b }) => ({ ...b, url: viewUrl(file) })),
+      broken,
     }), 'application/json');
   }
 

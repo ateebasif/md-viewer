@@ -26,8 +26,13 @@ mdv                # the current folder
   and adjust size, width and line spacing.
 - **18 themes,** from Light, Sepia and an e-ink style Ink theme to Solarized, Gruvbox,
   Catppuccin, Rosé Pine, Tokyo Night and Dracula. Each has matching code colors.
-- **Live reload.** Save in any editor and the page updates in place, keeping your scroll
-  position.
+- **Live reload that shows what changed.** Save in any editor (or let an AI tool rewrite
+  the file) and the page updates in place. Changed paragraphs flash and keep a margin mark,
+  and a small pill steps you through them.
+- **Picks up where you left off.** Each document remembers your place, and ⌘K lists your
+  recently opened files.
+- **Backlinks and broken links.** See which documents link to the one you're reading, and
+  spot links to missing files or headings before you click them.
 - **⌘K search across a folder.** File names, headings and full text, ranked, with
   highlighted snippets. Enter jumps straight to the section or the exact passage.
 - **Folders.** A sidebar lists every Markdown file, with filtering (`/`), next/previous
@@ -129,6 +134,7 @@ isn't listed), then click **Change All…**.
 | `/` | Filter the sidebar file list (`Enter` opens the first match) |
 | `[` | Show or hide the sidebar |
 | `n` / `p` | Next or previous file in the folder |
+| `c` / `⇧C` | Next or previous change after a live reload |
 | `e` | Open the file in your editor |
 | `r` | Reveal the file in Finder |
 | `+` / `-` | Larger or smaller text |
@@ -152,6 +158,30 @@ Results are ranked with exact file and heading matches first. Use `↑`/`↓` to
 open, and `⌘↵` to open in a new tab. With a single file open, search covers that file.
 Search runs locally, reads only folders you've opened, and keeps up with your edits.
 The browser's own **⌘F** still finds text on the current page.
+
+## Following changes
+
+When the open file changes on disk, mdv compares the new version with what you were looking
+at:
+
+- **Changed or new** paragraphs, headings, list items, table rows and code blocks flash
+  briefly and keep a thin mark in the margin.
+- A pill in the corner says how many changed (and how many blocks were removed). Use its
+  arrows, or `c` / `⇧C`, to jump between changes, and **×** to clear the marks.
+
+Your scroll position stays put while this happens.
+
+**Resume reading.** Opening a document you've read before returns you to where you stopped.
+Reloads and section links still go where you'd expect. With nothing typed, ⌘K shows your
+recently opened documents.
+
+**Backlinks.** At the end of each document, **Linked from** lists the other files in the
+folder that link to it, with the line that contains the link.
+
+**Broken links.** Links to a file that doesn't exist, or to a heading that isn't there (in
+another file or on the same page), get a wavy underline and a ⚠ with the reason on hover.
+Missing images get a dashed outline. Open
+[`sample/guides/broken-links.md`](sample/guides/broken-links.md) to see it.
 
 ## Themes
 
@@ -276,6 +306,7 @@ src/themes.js    Theme and font lists shared by the CLI, page and client
 src/auth.js      The access key shared by the CLI and server
 src/tree.js      Recursive Markdown file listing for the sidebar
 src/search.js    ⌘K search: file names, headings and full text, cached by mtime
+src/links.js     Backlinks and broken-link checks between documents
 public/          Client CSS and JS: themes, reader controls, filter, Mermaid, live reload
 macos/           AppleScript for MDView.app and the icon drawing script
 sample/          Documents that exercise every feature

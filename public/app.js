@@ -440,6 +440,7 @@
     es.addEventListener('change', (e) => {
       const data = JSON.parse(e.data);
       const y = scrollY;
+      const before = data.ok ? snapshot() : null;
       $('#mdv-doc').innerHTML = data.html;
       $('#mdv-toc-slot').innerHTML = data.toc;
       document.title = data.title;
@@ -448,6 +449,8 @@
       updateReadTime();
       scrollTo(0, y);
       updateProgress();
+      if (before) markChanges(before); else clearChanges();
+      refreshLinks();
       if (data.hasMermaid) renderMermaid().then(() => scrollTo(0, y));
     });
     es.addEventListener('tree', (e) => {
@@ -465,6 +468,7 @@
       applyFilter();
       sidebar.scrollTop = top;
       buildDocNav();
+      refreshLinks();
     });
   }
 
@@ -583,7 +587,7 @@
   let sActive = 0;
   let sTimer = null;
   let sSeq = 0;
-  const TYPE_LABEL = { file: 'File', heading: 'Section', text: 'Text' };
+  const TYPE_LABEL = { file: 'File', heading: 'Section', text: 'Text', recent: 'Recent' };
 
   const esc = (str) => String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   function highlight(text, terms) {
@@ -608,7 +612,16 @@
     sActive = 0;
     const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
     if (!q.trim()) {
-      sList.innerHTML = `<li class="search-empty">${boot.root ? 'Type to search every Markdown file in this folder.' : 'Type to search this document.'}</li>`;
+      const hint = `<li class="search-empty">${boot.root ? 'Type to search every Markdown file in this folder.' : 'Type to search this document.'}</li>`;
+      const recent = recentDocs().filter((r) => r.url !== location.pathname).slice(0, 8);
+      sResults = recent;
+      sList.innerHTML = recent.length
+        ? '<li class="search-section" role="presentation">Recently opened</li>' + recent.map((r, i) =>
+          `<li role="option" id="mdv-sr-${i}" class="sr sr-recent" aria-selected="${i === 0}">` +
+          `<span class="sr-type">${TYPE_LABEL.recent}</span><span class="sr-main">${esc(r.title)}</span>` +
+          `<span class="sr-sub">${esc(r.rel)}</span></li>`).join('')
+        : hint;
+      if (recent.length) sInput.setAttribute('aria-activedescendant', 'mdv-sr-0');
       return;
     }
     if (!results.length) {
@@ -754,6 +767,169 @@
   }
   addEventListener('hashchange', applyHash);
 
+  // ---------- what changed on live reload ----------
+  // Before a re-render, fingerprint each block (paragraph, heading, list item, table row…);
+  // afterwards, blocks with no matching fingerprint are new or edited. They flash, keep a
+  // margin mark, and the pill steps between them.
+  const changesPill = $('#mdv-changes');
+  const changesCount = $('#mdv-changes-count');
+  let changed = [];
+  let changeAt = -1;
+
+  function units(doc) {
+    const out = [];
+    for (const el of doc.children) {
+      if (el.matches('ul, ol')) out.push(...el.children);
+      else if (el.matches('table')) out.push(...el.querySelectorAll('thead, tbody > tr'));
+      else if (el.matches('section.footnotes')) out.push(...el.querySelectorAll('li'));
+      else out.push(el);
+    }
+    return out;
+  }
+  function fingerprint(el) {
+    if (el.matches('.mermaid-block')) { const pre = el.querySelector('pre.mermaid'); return 'mermaid:' + (pre?.dataset.src ?? pre?.textContent ?? '').trim(); }
+    const text = el.matches('.code-block') ? el.querySelector('pre')?.textContent : el.textContent;
+    return el.tagName + ':' + (text || '').replace(/\s+/g, ' ').trim().slice(0, 4000);
+  }
+  function snapshot() {
+    const counts = new Map();
+    for (const u of units($('#mdv-doc'))) { const f = fingerprint(u); counts.set(f, (counts.get(f) || 0) + 1); }
+    return counts;
+  }
+  function clearChanges() {
+    changed.forEach((el) => el.classList.remove('mdv-changed', 'mdv-flash'));
+    changed = [];
+    changeAt = -1;
+    changesPill.hidden = true;
+  }
+  function markChanges(before) {
+    clearChanges();
+    const after = units($('#mdv-doc'));
+    for (const u of after) {
+      const f = fingerprint(u);
+      const n = before.get(f) || 0;
+      if (n > 0) before.set(f, n - 1);
+      else changed.push(u);
+    }
+    // Leftover old blocks are either edited (already counted as changes) or deleted;
+    // only report what can't be an edit, so an edit doesn't also read as a removal.
+    let leftover = 0;
+    before.forEach((n) => { leftover += n; });
+    const removed = Math.max(0, leftover - changed.length);
+    if (!changed.length && !removed) return;
+    changed.forEach((el) => el.classList.add('mdv-changed', 'mdv-flash'));
+    setTimeout(() => changed.forEach((el) => el.classList.remove('mdv-flash')), 2400);
+    const parts = [];
+    if (changed.length) parts.push(`${changed.length} ${changed.length === 1 ? 'change' : 'changes'}`);
+    if (removed) parts.push(`${removed} removed`);
+    changesCount.textContent = parts.join(' · ');
+    changesPill.querySelectorAll('[data-step]').forEach((b) => { b.hidden = !changed.length; });
+    changesPill.hidden = false;
+  }
+  function stepChange(dir) {
+    if (!changed.length) return;
+    changeAt = (changeAt + dir + changed.length) % changed.length;
+    const el = changed[changeAt];
+    el.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    el.classList.remove('mdv-flash');
+    void el.offsetWidth; // restart the flash
+    el.classList.add('mdv-flash');
+    changesCount.textContent = `${changeAt + 1} of ${changed.length}`;
+  }
+  changesPill.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.close !== undefined) clearChanges();
+    else stepChange(Number(b.dataset.step));
+  });
+
+  // ---------- resume reading + recently opened ----------
+  const MAX_POSITIONS = 150;
+  function readJSON(key, fallback) { try { return JSON.parse(store.get(key) || '') || fallback; } catch { return fallback; } }
+  function recentDocs() { return readJSON('recent', []); }
+
+  function rememberRecent() {
+    if (!boot.file) return;
+    const decoded = decodeURIComponent(location.pathname).replace(/^\/view/, '');
+    const rel = boot.root && decoded.startsWith(boot.root + '/') ? decoded.slice(boot.root.length + 1) : decoded.split('/').slice(-2).join('/');
+    const list = recentDocs().filter((r) => r.url !== location.pathname);
+    list.unshift({ url: location.pathname, title: document.title, rel });
+    store.set('recent', JSON.stringify(list.slice(0, 15)));
+  }
+
+  let posTimer = null;
+  function savePosition() {
+    if (!boot.file) return;
+    const all = readJSON('pos', {});
+    all[location.pathname] = { y: Math.round(scrollY), t: Date.now() };
+    const keys = Object.keys(all);
+    if (keys.length > MAX_POSITIONS) keys.sort((a, b) => all[a].t - all[b].t).slice(0, keys.length - MAX_POSITIONS).forEach((k) => delete all[k]);
+    store.set('pos', JSON.stringify(all));
+  }
+  addEventListener('scroll', () => { clearTimeout(posTimer); posTimer = setTimeout(savePosition, 400); }, { passive: true });
+  addEventListener('pagehide', savePosition);
+
+  function resumePosition() {
+    // Only on a fresh visit: reloads and back/forward already restore scroll themselves,
+    // and links to a section or a search hit should land there instead.
+    const nav = performance.getEntriesByType('navigation')[0];
+    if (!boot.file || location.hash || (nav && nav.type !== 'navigate')) return;
+    const saved = readJSON('pos', {})[location.pathname];
+    if (!saved || saved.y < 300) return;
+    const go = () => scrollTo(0, saved.y);
+    go();
+    requestAnimationFrame(go);
+    setTimeout(go, 350); // after fonts and diagrams settle
+    toast('Picked up where you left off');
+  }
+
+  // ---------- backlinks and broken links ----------
+  const backlinksEl = $('#mdv-backlinks');
+  let linkSeq = 0;
+  async function refreshLinks() {
+    if (!boot.file) return;
+    const seq = ++linkSeq;
+    let data;
+    try {
+      const r = await fetch('/api/links?' + new URLSearchParams({ file: boot.file }));
+      if (!r.ok) return;
+      data = await r.json();
+    } catch { return; }
+    if (seq !== linkSeq) return;
+
+    if (data.backlinks.length) {
+      backlinksEl.innerHTML = `<h2 class="bl-title">Linked from <span>${data.backlinks.length}</span></h2><ul>` +
+        data.backlinks.map((b) => `<li><a href="${esc(b.url)}"><span class="bl-name">${esc(b.title)}</span>` +
+          `<span class="bl-rel">${esc(b.rel)}</span></a>${b.snippet ? `<p>${esc(b.snippet)}</p>` : ''}</li>`).join('') + '</ul>';
+      backlinksEl.hidden = false;
+    } else {
+      backlinksEl.hidden = true;
+      backlinksEl.textContent = '';
+    }
+
+    const broken = new Map(data.broken.map((b) => [b.href, b.reason]));
+    $$('#mdv-doc a[href]').forEach((a) => {
+      const href = a.getAttribute('href');
+      let reason = broken.get(href);
+      // Same-page jumps are checked here, against the ids actually on the page.
+      if (!reason && href.startsWith('#') && href.length > 1 && !a.matches('.anchor, [data-footnote-ref], [data-footnote-backref]')) {
+        let id = href.slice(1);
+        try { id = decodeURIComponent(id); } catch { /* as written */ }
+        if (!document.getElementById(id)) reason = 'Heading not found';
+      }
+      a.classList.toggle('link-broken', !!reason);
+      if (reason) a.title = `${reason}: ${href}`;
+    });
+  }
+  // Broken images get a visible outline instead of a silent gap.
+  document.addEventListener('error', (e) => {
+    const img = e.target;
+    if (img.tagName === 'IMG' && img.closest('#mdv-doc')) {
+      img.classList.add('img-broken');
+      img.title = 'Image not found: ' + img.getAttribute('src');
+    }
+  }, true);
+
   // ---------- keyboard ----------
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -776,6 +952,8 @@
         break;
       }
       case 'n': go('next'); break;
+      case 'c': stepChange(1); break;
+      case 'C': stepChange(-1); break;
       case 'p': go('prev'); break;
       case 'e': openIn('edit'); break;
       case 'r': openIn('reveal'); break;
@@ -794,6 +972,9 @@
   updateProgress();
   buildDocNav();
   applyHash();
+  rememberRecent();
+  resumePosition();
+  refreshLinks();
   if (boot.hasMermaid) renderMermaid();
   connect();
 })();
