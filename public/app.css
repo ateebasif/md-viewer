@@ -973,6 +973,26 @@ body.resizing iframe, body.resizing .prose { pointer-events: none; }
 .prose th[aria-sort="ascending"]::after { content: "↑"; opacity: 1; color: var(--accent); }
 .prose th[aria-sort="descending"]::after { content: "↓"; opacity: 1; color: var(--accent); }
 
+/* ---------- link hover previews ---------- */
+.preview {
+  position: fixed; z-index: 55; width: min(420px, calc(100vw - 24px)); max-height: 320px; overflow: hidden;
+  padding: 12px 16px 14px; border: 1px solid var(--rule-strong); border-radius: 10px;
+  background: var(--bg); color: var(--fg); box-shadow: 0 16px 44px rgba(0, 0, 0, .2);
+}
+.preview[hidden] { display: none; }
+.preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 36px; background: linear-gradient(transparent, var(--bg)); pointer-events: none; }
+.preview-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; font-family: var(--sans); }
+.preview-title { font-weight: 650; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview-where { font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preview-body.prose { font-size: 14.5px; line-height: 1.55; }
+.preview-body.prose > * { margin-bottom: 0.6em; }
+.preview-body.prose :is(h2, h3, h4) { font-size: 1.02em; margin: 0.6em 0 0.3em; border: 0; padding: 0; }
+.preview-body.prose .code-block { margin: 0.5em 0; }
+.preview-body.prose .code-head { display: none; }
+.preview-body.prose pre { padding-top: 10px; font-size: 0.78em; }
+.preview-body.prose img { max-height: 120px; }
+.preview-note { color: var(--faint); font-style: italic; }
+
 /* ---------- reading aids ---------- */
 .read-time { flex-shrink: 0; font-size: 12px; color: var(--faint); padding-left: 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .read-time:empty { display: none; }
@@ -1046,7 +1066,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .35); }
 @media print {
   .bar, .sidebar, .pane-resizer, .toc-wrap, .code-copy, .anchor, .skip { display: none !important; }
   .main, .page { display: block; padding: 0; }
-  .doc-nav, .progress, dialog, .toast, .search-btn, .changes, .backlinks { display: none !important; }
+  .doc-nav, .progress, dialog, .toast, .search-btn, .changes, .backlinks, .preview { display: none !important; }
   .prose .mdv-changed::before { content: none; }
   .prose { max-width: none; font-size: 11pt; }
   .code-block, .prose pre { break-inside: avoid; }

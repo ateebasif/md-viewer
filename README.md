@@ -33,8 +33,9 @@ mdv                # the current folder
   and a small pill steps you through them.
 - **Picks up where you left off.** Each document remembers your place, and ⌘K lists your
   recently opened files.
-- **Backlinks and broken links.** See which documents link to the one you're reading, and
-  spot links to missing files or headings before you click them.
+- **Backlinks, link previews and broken links.** See which documents link to the one you're
+  reading, hover a link to preview where it goes, and spot links to missing files or
+  headings before you click them.
 - **⌘K search across a folder.** File names, headings and full text, ranked, with
   highlighted snippets. Enter jumps straight to the section or the exact passage.
 - **Folders.** A sidebar lists every Markdown file, with filtering (`/`), next/previous
@@ -190,6 +191,10 @@ once.
 **Backlinks.** At the end of each document, **Linked from** lists the other files in the
 folder that link to it, with the line that contains the link.
 
+**Link previews.** Hover a link to another Markdown file, or to a heading on this page, and
+a card shows that section (or the start of the document) without leaving the page. It also
+works when a link has keyboard focus. Press `Esc` or move away to close it.
+
 **Broken links.** Links to a file that doesn't exist, or to a heading that isn't there (in
 another file or on the same page), get a wavy underline and a ⚠ with the reason on hover.
 Missing images get a dashed outline. Open
@@ -330,7 +335,7 @@ npm run test:bun    # the same tests on Bun
 
 `test/security.sh` starts an isolated server (its own port and config folder) against
 fixtures in a temporary folder. It checks sign-in, path and symlink escapes, FIFOs, HTML
-stripping, search, links and live reload. It cleans up after itself and exits non-zero if any
+stripping, search, links, previews and live reload. It cleans up after itself and exits non-zero if any
 check fails. GitHub Actions runs it on macOS for Node 18, Node 22 and Bun on every push and
 pull request.
 

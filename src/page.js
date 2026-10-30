@@ -185,6 +185,7 @@ ${bootScript()}
 </dialog>
 <dialog class="zoom" id="mdv-zoom" aria-label="Image"><img alt=""></dialog>
 <div class="toast" id="mdv-toast" role="status" aria-live="polite"></div>
+<div class="preview" id="mdv-preview" role="tooltip" hidden></div>
 <div class="changes" id="mdv-changes" role="status" aria-live="polite" hidden>
   <span class="changes-dot" aria-hidden="true"></span><span id="mdv-changes-count"></span>
   <button type="button" data-step="-1" aria-label="Previous change" title="Previous change  ⇧C">↑</button>

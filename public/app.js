@@ -508,6 +508,7 @@
         input.value = q;
         if (focused) input.focus();
       }
+      previewCache.clear();
       markUpdated();
       applyFilter();
       sidebar.scrollTop = top;
@@ -1153,6 +1154,148 @@
     const th = e.target.closest('th.sortable');
     if (th && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSortHeader(th); }
   });
+
+  // ---------- link hover previews ----------
+  // Hover (or focus) a link to another Markdown file or to a heading, and a card shows that
+  // section or the document's opening. Other files come from /api/preview, which applies the
+  // same access checks as opening the page; the excerpt is cut out here with DOMParser.
+  const previewEl = $('#mdv-preview');
+  const previewCache = new Map(); // view URL -> Promise<{ title, doc }>
+  const hoverCapable = matchMedia('(hover: hover)').matches;
+  let previewTimer = null;
+  let previewHide = null;
+  let previewFor = null;
+
+  function previewTarget(a) {
+    if (!a || a.closest('.anchor, .fold-btn') || a.matches('[data-footnote-ref], [data-footnote-backref], .link-broken')) return null;
+    const href = a.getAttribute('href') || '';
+    if (href.startsWith('#')) return href.length > 1 ? { url: location.pathname, hash: href.slice(1), same: true } : null;
+    let u;
+    try { u = new URL(a.href); } catch { return null; }
+    if (u.origin !== location.origin || !u.pathname.startsWith('/view/') || !/\.(md|markdown|mdown|mkdn?|mdx)$/i.test(u.pathname)) return null;
+    return { url: u.pathname, hash: u.hash.slice(1), same: u.pathname === location.pathname };
+  }
+
+  function loadPreview(url) {
+    if (!previewCache.has(url)) {
+      const file = decodeURIComponent(url.slice('/view'.length));
+      previewCache.set(url, fetch('/api/preview?' + new URLSearchParams({ file }))
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((d) => ({ title: d.title, doc: new DOMParser().parseFromString(`<div>${d.html}</div>`, 'text/html').body.firstChild }))
+        .catch((e) => { previewCache.delete(url); throw e; }));
+    }
+    return previewCache.get(url);
+  }
+
+  // Up to ~700 characters of blocks: a heading's section, or the opening of a document.
+  function excerpt(root, hash) {
+    let start = null;
+    let level = 7;
+    let heading = '';
+    if (hash) {
+      let id = hash;
+      try { id = decodeURIComponent(hash); } catch { /* as written */ }
+      start = root.querySelector(`[id="${CSS.escape(id)}"]`);
+      if (!start) return null;
+      if (/^H[1-6]$/.test(start.tagName)) {
+        level = Number(start.tagName[1]);
+        heading = start.textContent.replace(/#$/, '').trim();
+        start = start.nextElementSibling;
+      } else {
+        return { heading: '', blocks: [start.cloneNode(true)] };
+      }
+    } else {
+      // A whole document: its opening, continuing past sub-headings until the card is full.
+      level = 1;
+      start = root.firstElementChild;
+      while (start && (start.matches('h1, header.doc-meta'))) start = start.nextElementSibling;
+    }
+    const blocks = [];
+    let chars = 0;
+    for (let el = start; el && chars < 700 && blocks.length < 5; el = el.nextElementSibling) {
+      if (/^H[1-6]$/.test(el.tagName) && Number(el.tagName[1]) <= level) break;
+      if (el.matches('section.footnotes')) break;
+      blocks.push(el.cloneNode(true));
+      chars += el.textContent.length;
+    }
+    return { heading, blocks };
+  }
+
+  function placePreview(a) {
+    const r = a.getBoundingClientRect();
+    previewEl.style.left = '0px';
+    previewEl.style.top = '0px';
+    const w = previewEl.offsetWidth;
+    const h = previewEl.offsetHeight;
+    const left = Math.max(12, Math.min(r.left, innerWidth - w - 12));
+    const below = r.bottom + 8;
+    const top = below + h < innerHeight - 8 || r.top - h - 8 < 8 ? below : r.top - h - 8;
+    previewEl.style.left = left + 'px';
+    previewEl.style.top = Math.max(8, top) + 'px';
+  }
+
+  async function showPreview(a) {
+    const t = previewTarget(a);
+    if (!t) return;
+    previewFor = a;
+    let title;
+    let root;
+    try {
+      if (t.same) { root = $('#mdv-doc'); title = document.title; }
+      else ({ title, doc: root } = await loadPreview(t.url));
+    } catch { return; }
+    if (previewFor !== a) return;
+    const ex = excerpt(root, t.hash);
+    if (!ex || (!ex.blocks.length && !ex.heading)) return;
+    const base = new URL(t.url, location.origin);
+    const body = document.createElement('div');
+    body.className = 'preview-body prose';
+    ex.blocks.forEach((b) => body.append(b));
+    // Clean the copy: no ids to clash with this page, no controls, and links/images resolved
+    // against the previewed file rather than this page.
+    body.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+    body.querySelectorAll('.anchor, .fold-btn, .code-copy, .code-more, script, style').forEach((el) => el.remove());
+    body.querySelectorAll('.mermaid-block').forEach((el) => { el.replaceWith(Object.assign(document.createElement('p'), { className: 'preview-note', textContent: 'Diagram' })); });
+    body.querySelectorAll('.fold-hidden, .mdv-changed, .mdv-flash').forEach((el) => el.classList.remove('fold-hidden', 'mdv-changed', 'mdv-flash'));
+    body.querySelectorAll('img[src]').forEach((img) => { img.src = new URL(img.getAttribute('src'), base).href; });
+    body.querySelectorAll('a[href]').forEach((link) => { if (!link.getAttribute('href').startsWith('#')) link.href = new URL(link.getAttribute('href'), base).href; });
+    const where = t.same ? '' : decodeURIComponent(t.url).split('/').slice(-2).join('/');
+    previewEl.innerHTML = `<div class="preview-head"><span class="preview-title">${esc(ex.heading || title)}</span>` +
+      (ex.heading && !t.same ? `<span class="preview-where">${esc(title)}</span>` : where ? `<span class="preview-where">${esc(where)}</span>` : '') + '</div>';
+    if (ex.blocks.length) previewEl.append(body);
+    previewEl.hidden = false;
+    placePreview(a);
+  }
+
+  function hidePreview(now) {
+    clearTimeout(previewTimer);
+    clearTimeout(previewHide);
+    const go = () => { previewEl.hidden = true; previewFor = null; };
+    if (now) go(); else previewHide = setTimeout(go, 180);
+  }
+
+  if (hoverCapable) {
+    $('#mdv-doc').addEventListener('mouseover', (e) => {
+      const a = e.target.closest('a[href]');
+      if (!a || a === previewFor || !previewTarget(a)) return;
+      clearTimeout(previewTimer);
+      clearTimeout(previewHide);
+      previewTimer = setTimeout(() => showPreview(a), 350);
+    });
+    $('#mdv-doc').addEventListener('mouseout', (e) => {
+      const a = e.target.closest('a[href]');
+      if (a && !a.contains(e.relatedTarget)) { clearTimeout(previewTimer); if (previewFor) hidePreview(); }
+    });
+    previewEl.addEventListener('mouseenter', () => clearTimeout(previewHide));
+    previewEl.addEventListener('mouseleave', () => hidePreview());
+  }
+  $('#mdv-doc').addEventListener('focusin', (e) => {
+    const a = e.target.closest('a[href]');
+    if (a && previewTarget(a)) { clearTimeout(previewTimer); previewTimer = setTimeout(() => showPreview(a), 350); }
+  });
+  $('#mdv-doc').addEventListener('focusout', () => hidePreview(true));
+  addEventListener('scroll', () => { if (!previewEl.hidden) hidePreview(true); }, { passive: true });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !previewEl.hidden) hidePreview(true); });
 
   // ---------- keyboard ----------
   document.addEventListener('keydown', (e) => {

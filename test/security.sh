@@ -60,6 +60,11 @@ LB=$(curl -s -b "$J" -G --data-urlencode "file=$(cd "$W/root/sub" && pwd -P)/lin
 check "links: broken link reported" 'grep -q "nope.md" <<<"$LB"'
 check "links: needs cookie" '[[ $(curl -s -o /dev/null -w "%{http_code}" "$B/api/links?file=/etc/hosts") == 401 ]]'
 check "links: outside roots returns nothing" 'grep -q "\"backlinks\":\[\]" <<<"$(curl -s -b "$J" "$B/api/links?file=/etc/hosts")"'
+SUB="$(cd "$W/root/sub" && pwd -P)"
+check "preview: works with cookie" 'curl -s -b "$J" -G --data-urlencode "file=$SUB/linker.md" "$B/api/preview" | grep -q "Linker"'
+check "preview: needs cookie" '[[ $(curl -s -o /dev/null -w "%{http_code}" -G --data-urlencode "file=$SUB/linker.md" "$B/api/preview") == 401 ]]'
+check "preview: symlink out refused" '! curl -s -b "$J" -G --data-urlencode "file=$SUB/leak.md" "$B/api/preview" | grep -qi "top secret"'
+check "preview: outside roots refused" '[[ $(curl -s -b "$J" -o /dev/null -w "%{http_code}" "$B/api/preview?file=/etc/hosts") == 404 ]]'
 check "?raw shows markdown as text" 'curl -s -b "$J" -I "$B/view$R/sub/victim.md?raw" | grep -qi "content-type: text/plain"'
 
 # live-reload symlink swap

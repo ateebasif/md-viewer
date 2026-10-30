@@ -615,6 +615,16 @@ async function handle(req, res) {
     }), 'application/json');
   }
 
+  if (pathname === '/api/preview') {
+    // Rendered HTML of another document, for link hover cards. Same checks as a page load.
+    const f = resolveAllowed(url.searchParams.get('file') || '');
+    if (f.error || !f.stat.isFile() || !isMarkdown(f.real) || f.stat.size > MAX_RENDER_BYTES) {
+      return send(res, 404, '{"error":"not available"}', 'application/json');
+    }
+    const r = renderMarkdown(fs.readFileSync(f.real, 'utf8'), path.basename(f.real));
+    return send(res, 200, JSON.stringify({ title: r.title, html: r.html }), 'application/json');
+  }
+
   if (pathname === '/api/links') {
     const f = resolveAllowed(url.searchParams.get('file') || '');
     if (!f.real || !f.stat.isFile()) return send(res, 200, '{"backlinks":[],"broken":[]}', 'application/json');
