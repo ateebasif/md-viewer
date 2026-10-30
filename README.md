@@ -28,6 +28,8 @@ mdv                # the current folder
   Catppuccin, Rosé Pine, Tokyo Night and Dracula. Each has matching code colors.
 - **Live reload.** Save in any editor and the page updates in place, keeping your scroll
   position.
+- **⌘K search across a folder.** File names, headings and full text, ranked, with
+  highlighted snippets. Enter jumps straight to the section or the exact passage.
 - **Folders.** A sidebar lists every Markdown file, with filtering (`/`), next/previous
   navigation and a sticky table of contents.
 - **Everything GitHub renders:** tables, task lists, footnotes, alerts (`[!NOTE]`,
@@ -121,6 +123,7 @@ isn't listed), then click **Change All…**.
 
 | Key | Action |
 | --- | --- |
+| `⌘K` / `Ctrl+K` | Search file names, headings and text (`↵` opens, `⌘↵` opens in a new tab) |
 | `t` | Cycle themes |
 | `s` | Reading settings: typeface, size, width, spacing, code font |
 | `/` | Filter the sidebar file list (`Enter` opens the first match) |
@@ -134,6 +137,21 @@ isn't listed), then click **Change All…**.
 The dot in the top bar shows live reload: green means connected, amber means reconnecting.
 Drag the edge of the sidebar or the table of contents to resize it, and double-click the
 edge to reset it.
+
+## Search
+
+Press **⌘K** (or **Ctrl+K**, or click **Search** in the top bar) to search the folder you
+opened:
+
+- **Files** by name or title
+- **Sections**: every heading in every document. Choosing one opens the file at that heading.
+- **Text**: full-text matches with a snippet. Choosing one scrolls to the passage and briefly
+  highlights it.
+
+Results are ranked with exact file and heading matches first. Use `↑`/`↓` to move, `↵` to
+open, and `⌘↵` to open in a new tab. With a single file open, search covers that file.
+Search runs locally, reads only folders you've opened, and keeps up with your edits.
+The browser's own **⌘F** still finds text on the current page.
 
 ## Themes
 
@@ -257,6 +275,7 @@ src/page.js      Page shell, sidebar, table of contents, settings panel
 src/themes.js    Theme and font lists shared by the CLI, page and client
 src/auth.js      The access key shared by the CLI and server
 src/tree.js      Recursive Markdown file listing for the sidebar
+src/search.js    ⌘K search: file names, headings and full text, cached by mtime
 public/          Client CSS and JS: themes, reader controls, filter, Mermaid, live reload
 macos/           AppleScript for MDView.app and the icon drawing script
 sample/          Documents that exercise every feature

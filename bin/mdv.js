@@ -37,6 +37,7 @@ Examples
   mdv --stop                    Stop the server
 
 In the browser
+  ⌘K search names, headings and text across the folder
   t  cycle themes        /  filter files        [  show/hide sidebar
   n  next file           p  previous file       e  open in your editor
   r  reveal in Finder    s  reading settings    +  -  text size

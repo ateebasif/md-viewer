@@ -126,6 +126,7 @@ ${bootScript()}
     <span class="read-time" id="mdv-read-time"></span>
   </div>
   <div class="bar-right" role="toolbar" aria-label="Reader settings">
+    <button type="button" class="search-btn" id="mdv-search-btn" title="Search  ⌘K" aria-label="Search (⌘K)" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12.6 12.6 17 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="search-btn-label">Search</span><kbd>⌘K</kbd></button>
     <span class="live" id="mdv-live" title="Live reload" aria-live="polite"></span>
     ${current ? `<button type="button" class="icon-btn" id="mdv-edit-btn" title="Open in editor  e" aria-label="Open in editor"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13.6 3.6l2.8 2.8-8.9 8.9-3.6.8.8-3.6z M11.8 5.4l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></button>` : ''}
     <button type="button" class="text-btn" id="mdv-settings-btn" title="Reading settings  s" aria-label="Reading settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="mdv-settings">Aa</button>
@@ -154,6 +155,7 @@ ${bootScript()}
 <dialog class="help" id="mdv-help" aria-labelledby="mdv-help-title">
   <form method="dialog" class="help-head"><h2 id="mdv-help-title">Keyboard shortcuts</h2><button class="icon-btn" aria-label="Close">×</button></form>
   <dl class="keys">
+    <div><dt><kbd>⌘</kbd> <kbd>K</kbd></dt><dd>Search names, headings and text</dd></div>
     <div><dt><kbd>t</kbd></dt><dd>Cycle themes</dd></div>
     <div><dt><kbd>/</kbd></dt><dd>Filter files</dd></div>
     <div><dt><kbd>[</kbd></dt><dd>Show or hide the sidebar</dd></div>
@@ -165,6 +167,15 @@ ${bootScript()}
     <div><dt><kbd>?</kbd></dt><dd>This panel</dd></div>
   </dl>
   <p class="help-note">Drag the edge of the sidebar or contents to resize; double-click to reset. Click an image to zoom.</p>
+</dialog>
+<dialog class="search" id="mdv-search" aria-label="Search">
+  <div class="search-box">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12.6 12.6 17 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <input id="mdv-search-input" type="text" role="combobox" aria-expanded="true" aria-controls="mdv-search-results" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="${root ? 'Search file names, headings and text' : 'Search this document'}">
+    <kbd>esc</kbd>
+  </div>
+  <ul class="search-results" id="mdv-search-results" role="listbox" aria-label="Results"></ul>
+  <div class="search-foot"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> open</span><span><kbd>⌘</kbd><kbd>↵</kbd> new tab</span></div>
 </dialog>
 <dialog class="zoom" id="mdv-zoom" aria-label="Image"><img alt=""></dialog>
 <div class="toast" id="mdv-toast" role="status" aria-live="polite"></div>

@@ -12,6 +12,7 @@ import { listMarkdownTree, findIndexFile } from './tree.js';
 import { pageHtml, sidebarHtml, crumbsHtml, viewUrl, tocHtml } from './page.js';
 import { CONFIG_DIR, loadSecret, safeEqual } from './auth.js';
 import { FONT_PACKAGES } from './themes.js';
+import { search, flattenTree } from './search.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT = path.resolve(HERE, '..');
@@ -585,6 +586,30 @@ async function handle(req, res) {
       armIdle();
     });
     return;
+  }
+
+  if (pathname === '/api/search') {
+    const q = (url.searchParams.get('q') || '').slice(0, 200);
+    let files = [];
+    let base = null;
+    const wantRoot = url.searchParams.get('root');
+    const wantFile = url.searchParams.get('file');
+    const r = wantRoot ? resolveAllowed(wantRoot) : null;
+    const dirRoot = r && r.real && r.stat.isDirectory() ? dirRootFor(r.real) : null;
+    if (dirRoot) {
+      base = dirRoot.dir;
+      files = flattenTree(listMarkdownTree(base));
+    } else if (wantFile) {
+      const f = resolveAllowed(wantFile);
+      if (f.real && f.stat.isFile()) { files = [f.real]; base = path.dirname(f.real); }
+    }
+    // Each file is checked like a page load, so a symlink in the folder can't leak outside files.
+    files = files.filter((f) => { const a = resolveAllowed(f); return !a.error && a.stat.isFile(); });
+    const results = q.trim() && base ? search(files, base, q) : [];
+    return send(res, 200, JSON.stringify({
+      count: files.length,
+      results: results.map((x) => ({ ...x, url: viewUrl(x.file), file: undefined })),
+    }), 'application/json');
   }
 
   if (pathname === '/') return landing(res);

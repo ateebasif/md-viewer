@@ -218,5 +218,8 @@ export function renderMarkdown(src, fileName = '') {
     .filter((h) => h.level >= 2 && h.level <= 4)
     .map((h) => ({ level: h.level, id: h.id.startsWith('mdv-') ? 'user-' + h.id : h.id, text: stripTags(h.text) }));
 
-  return { html, toc, title: docTitle, hasMermaid: html.includes('class="mermaid"') };
+  // Every heading, for search: same ids as the rendered page.
+  const allHeadings = headings.map((h) => ({ level: h.level, id: h.id.startsWith('mdv-') ? 'user-' + h.id : h.id, text: stripTags(h.text) }));
+
+  return { html, toc, headings: allHeadings, title: docTitle, hasMermaid: html.includes('class="mermaid"') };
 }

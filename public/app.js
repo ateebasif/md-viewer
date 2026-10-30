@@ -575,6 +575,185 @@
     }
   });
 
+  // ---------- ⌘K search ----------
+  const searchDlg = $('#mdv-search');
+  const sInput = $('#mdv-search-input');
+  const sList = $('#mdv-search-results');
+  let sResults = [];
+  let sActive = 0;
+  let sTimer = null;
+  let sSeq = 0;
+  const TYPE_LABEL = { file: 'File', heading: 'Section', text: 'Text' };
+
+  const esc = (str) => String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  function highlight(text, terms) {
+    let out = esc(text);
+    for (const t of terms) {
+      if (!t) continue;
+      const re = new RegExp('(' + esc(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+      out = out.replace(re, '<mark>$1</mark>');
+    }
+    return out;
+  }
+
+  function openSearch() {
+    if (!searchDlg.open) searchDlg.showModal();
+    sInput.focus();
+    sInput.select();
+    if (!sInput.value.trim()) renderSearch([], '');
+  }
+
+  function renderSearch(results, q) {
+    sResults = results;
+    sActive = 0;
+    const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!q.trim()) {
+      sList.innerHTML = `<li class="search-empty">${boot.root ? 'Type to search every Markdown file in this folder.' : 'Type to search this document.'}</li>`;
+      return;
+    }
+    if (!results.length) {
+      sList.innerHTML = `<li class="search-empty">No results for “${esc(q)}”</li>`;
+      return;
+    }
+    sList.innerHTML = results.map((r, i) => {
+      const main = r.type === 'heading' ? r.heading : r.type === 'text' ? r.snippet : r.title;
+      const sub = r.type === 'heading' ? `${esc(r.title)} · ${esc(r.rel)}` : esc(r.rel);
+      return `<li role="option" id="mdv-sr-${i}" class="sr sr-${r.type}" aria-selected="${i === 0}">` +
+        `<span class="sr-type">${TYPE_LABEL[r.type]}</span>` +
+        `<span class="sr-main">${highlight(main, terms)}</span>` +
+        `<span class="sr-sub">${sub}</span></li>`;
+    }).join('');
+    sInput.setAttribute('aria-activedescendant', 'mdv-sr-0');
+  }
+
+  function setActive(i) {
+    if (!sResults.length) return;
+    sActive = (i + sResults.length) % sResults.length;
+    $$('.sr', sList).forEach((li, n) => li.setAttribute('aria-selected', String(n === sActive)));
+    const li = $(`#mdv-sr-${sActive}`);
+    li?.scrollIntoView({ block: 'nearest' });
+    sInput.setAttribute('aria-activedescendant', `mdv-sr-${sActive}`);
+  }
+
+  async function runSearch() {
+    const q = sInput.value;
+    const seq = ++sSeq;
+    if (!q.trim()) return renderSearch([], '');
+    const qs = new URLSearchParams({ q });
+    if (boot.root) qs.set('root', boot.root);
+    if (boot.file) qs.set('file', boot.file);
+    try {
+      const r = await fetch('/api/search?' + qs);
+      if (!r.ok) throw new Error(String(r.status));
+      const data = await r.json();
+      if (seq === sSeq) renderSearch(data.results, q);
+    } catch {
+      if (seq === sSeq) sList.innerHTML = '<li class="search-empty">Search isn’t available. Run mdv again to reconnect.</li>';
+    }
+  }
+
+  function openResult(r, newTab) {
+    if (!r) return;
+    const samePage = r.url === location.pathname;
+    let hash = '';
+    if (r.type === 'heading') hash = '#' + encodeURIComponent(r.id);
+    else if (r.type === 'text') hash = '#mdv-find=' + encodeURIComponent(r.match + '\u0000' + r.snippet);
+    if (newTab) return window.open(r.url + hash, '_blank', 'noopener');
+    searchDlg.close();
+    if (samePage && hash) {
+      if (location.hash === hash) applyHash(); else location.hash = hash;
+    } else {
+      location.href = r.url + hash;
+    }
+  }
+
+  sInput.addEventListener('input', () => { clearTimeout(sTimer); sTimer = setTimeout(runSearch, 110); });
+  sInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(sActive + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(sActive - 1); }
+    else if (e.key === 'Enter') { e.preventDefault(); openResult(sResults[sActive], e.metaKey || e.ctrlKey); }
+  });
+  sList.addEventListener('mousemove', (e) => {
+    const li = e.target.closest('.sr');
+    if (li) { const i = Number(li.id.replace('mdv-sr-', '')); if (i !== sActive) setActive(i); }
+  });
+  sList.addEventListener('click', (e) => {
+    const li = e.target.closest('.sr');
+    if (li) openResult(sResults[Number(li.id.replace('mdv-sr-', ''))], e.metaKey || e.ctrlKey);
+  });
+  searchDlg.addEventListener('click', (e) => { if (e.target === searchDlg) searchDlg.close(); });
+  $('#mdv-search-btn').addEventListener('click', openSearch);
+  // ⌘K / Ctrl+K works everywhere, even while typing in the file filter.
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      if (searchDlg.open) searchDlg.close(); else openSearch();
+    }
+  }, true);
+
+  // Text results jump to the exact spot: #mdv-find=<match>\0<snippet>. Whitespace is
+  // normalised so the snippet still matches text split across lines and inline markup.
+  // Returns { range, mark }: `range` covers the needle found, `mark` its first markLen chars.
+  function findInDoc(needles, markLen) {
+    const walker = document.createTreeWalker($('#mdv-doc'), NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.parentElement.closest('.code-head, .anchor, .code-more') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    let flat = '';
+    const map = []; // flat index -> [text node, offset]
+    let lastSpace = true;
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const v = node.nodeValue;
+      for (let i = 0; i < v.length; i++) {
+        const space = /\s/.test(v[i]);
+        if (space && lastSpace) continue;
+        flat += space ? ' ' : v[i].toLowerCase();
+        map.push([node, i]);
+        lastSpace = space;
+      }
+    }
+    const span = (from, len) => {
+      const r = document.createRange();
+      const [sn, so] = map[from];
+      const [en, eo] = map[from + len - 1];
+      r.setStart(sn, so);
+      r.setEnd(en, eo + 1);
+      return r;
+    };
+    for (const needle of needles) {
+      const n = needle.replace(/\s+/g, ' ').trim().toLowerCase();
+      const at = n ? flat.indexOf(n) : -1;
+      if (at !== -1) return { range: span(at, n.length), mark: span(at, Math.min(markLen, n.length)) };
+    }
+    return null;
+  }
+
+  function applyHash() {
+    if (!location.hash.startsWith('#mdv-find=')) return;
+    let payload;
+    try { payload = decodeURIComponent(location.hash.slice('#mdv-find='.length)); } catch { return; }
+    history.replaceState(null, '', location.pathname + location.search);
+    const [match, snip = ''] = payload.split('\u0000');
+    // Use the match plus a few following words from the snippet to land on the right one.
+    const core = snip.replace(/^…|…$/g, '');
+    const i = core.toLowerCase().indexOf(match.toLowerCase());
+    const context = i === -1 ? '' : core.slice(i, i + match.length + 40).replace(/\s+\S*$/, '');
+    const found = findInDoc([context, match], match.replace(/\s+/g, ' ').trim().length);
+    if (!found) return;
+    found.range.startContainer.parentElement.scrollIntoView({
+      block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    });
+    if (window.CSS && CSS.highlights && window.Highlight) {
+      CSS.highlights.set('mdv-find', new Highlight(found.mark));
+      setTimeout(() => CSS.highlights.delete('mdv-find'), 2600);
+    } else {
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(found.mark);
+    }
+  }
+  addEventListener('hashchange', applyHash);
+
   // ---------- keyboard ----------
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -614,6 +793,7 @@
   updateReadTime();
   updateProgress();
   buildDocNav();
+  applyHash();
   if (boot.hasMermaid) renderMermaid();
   connect();
 })();
