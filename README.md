@@ -31,6 +31,9 @@ mdv                # the current folder
 - **Live reload that shows what changed.** Save in any editor (or let an AI tool rewrite
   the file) and the page updates in place. Changed paragraphs flash and keep a margin mark,
   and a small pill steps you through them.
+- **Changes since the last git commit.** In a git repo, one click highlights every paragraph
+  that differs from the committed version, and the sidebar marks modified (M) and
+  uncommitted (U) files.
 - **Picks up where you left off.** Each document remembers your place, and ⌘K lists your
   recently opened files.
 - **Backlinks, link previews and broken links.** See which documents link to the one you're
@@ -141,6 +144,7 @@ isn't listed), then click **Change All…**.
 | `[` | Show or hide the sidebar |
 | `n` / `p` | Next or previous file in the folder |
 | `c` / `⇧C` | Next or previous change after a live reload |
+| `g` | Show changes since the last git commit |
 | `f` / `⇧F` | Fold the current section / fold everything to an outline |
 | `z` | Focus mode (`z` or `Esc` to leave) |
 | `e` | Open the file in your editor |
@@ -182,6 +186,14 @@ Your scroll position stays put while this happens.
 **Resume reading.** Opening a document you've read before returns you to where you stopped.
 Reloads and section links still go where you'd expect. With nothing typed, ⌘K shows your
 recently opened documents.
+
+**Changes since the last commit.** When a document is inside a git repository and differs
+from the last commit, a **Modified · show changes** button appears next to the file name.
+Click it (or press `g`) to highlight every block that changed since that commit, including
+edits made before you opened the page. Step through them with the same pill and `c` keys.
+The sidebar marks Markdown files that are modified (**M**) or not yet committed (**U**).
+mdv only uses read-only git commands that can't run hooks or filters, so even a hostile
+repository can't make it execute code.
 
 **Updated since you last read.** mdv remembers when you last opened each file. In the
 sidebar, files modified since then get a dot, and the **N updated** chip under the filter
@@ -335,7 +347,8 @@ npm run test:bun    # the same tests on Bun
 
 `test/security.sh` starts an isolated server (its own port and config folder) against
 fixtures in a temporary folder. It checks sign-in, path and symlink escapes, FIFOs, HTML
-stripping, search, links, previews and live reload. It cleans up after itself and exits non-zero if any
+stripping, search, links, previews, live reload and git (including a hostile repo whose config
+tries to run commands). It cleans up after itself and exits non-zero if any
 check fails. GitHub Actions runs it on macOS for Node 18, Node 22 and Bun on every push and
 pull request.
 
@@ -349,6 +362,7 @@ src/auth.js      The access key shared by the CLI and server
 src/tree.js      Recursive Markdown file listing for the sidebar
 src/search.js    ⌘K search: file names, headings and full text, cached by mtime
 src/links.js     Backlinks and broken-link checks between documents
+src/git.js       Changes since the last commit, using read-only git plumbing
 public/          Client CSS and JS: themes, reader controls, filter, Mermaid, live reload
 macos/           AppleScript for MDView.app and the icon drawing script
 sample/          Documents that exercise every feature

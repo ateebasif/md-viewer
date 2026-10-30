@@ -491,8 +491,9 @@
       updateReadTime();
       scrollTo(0, y);
       updateProgress();
-      if (before) markChanges(before); else clearChanges();
+      if (gitMode) { /* refreshGit below re-marks against the commit */ } else if (before) markChanges(before); else clearChanges();
       markRead();
+      refreshGit();
       refreshLinks();
       if (data.hasMermaid) renderMermaid().then(() => scrollTo(0, y));
     });
@@ -509,6 +510,7 @@
         if (focused) input.focus();
       }
       previewCache.clear();
+      refreshGitTree();
       markUpdated();
       applyFilter();
       sidebar.scrollTop = top;
@@ -837,9 +839,9 @@
     const text = el.matches('.code-block') ? el.querySelector('pre')?.textContent : el.textContent;
     return el.tagName + ':' + (text || '').replace(/\s+/g, ' ').trim().slice(0, 4000);
   }
-  function snapshot() {
+  function snapshot(container = $('#mdv-doc')) {
     const counts = new Map();
-    for (const u of units($('#mdv-doc'))) { const f = fingerprint(u); counts.set(f, (counts.get(f) || 0) + 1); }
+    for (const u of units(container)) { const f = fingerprint(u); counts.set(f, (counts.get(f) || 0) + 1); }
     return counts;
   }
   function clearChanges() {
@@ -848,7 +850,7 @@
     changeAt = -1;
     changesPill.hidden = true;
   }
-  function markChanges(before) {
+  function markChanges(before, suffix = '') {
     clearChanges();
     const after = units($('#mdv-doc'));
     for (const u of after) {
@@ -866,7 +868,7 @@
     changed.forEach((el) => el.classList.add('mdv-changed', 'mdv-flash'));
     setTimeout(() => changed.forEach((el) => el.classList.remove('mdv-flash')), 2400);
     const parts = [];
-    if (changed.length) parts.push(`${changed.length} ${changed.length === 1 ? 'change' : 'changes'}`);
+    if (changed.length) parts.push(`${changed.length} ${changed.length === 1 ? 'change' : 'changes'}${suffix}`);
     if (removed) parts.push(`${removed} removed`);
     changesCount.textContent = parts.join(' · ');
     changesPill.querySelectorAll('[data-step]').forEach((b) => { b.hidden = !changed.length; });
@@ -886,7 +888,7 @@
   changesPill.addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b) return;
-    if (b.dataset.close !== undefined) clearChanges();
+    if (b.dataset.close !== undefined) { clearChanges(); if (gitMode) { gitMode = false; syncGitChip(); } }
     else stepChange(Number(b.dataset.step));
   });
 
@@ -1297,6 +1299,78 @@
   addEventListener('scroll', () => { if (!previewEl.hidden) hidePreview(true); }, { passive: true });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !previewEl.hidden) hidePreview(true); });
 
+  // ---------- changes since the last git commit ----------
+  // The server returns this file's committed version (rendered); the same block fingerprints
+  // used for live reload then mark everything that differs. Sidebar files get M / U markers.
+  const gitChip = $('#mdv-git');
+  let gitState = null;
+  let gitMode = false;
+  function syncGitChip() {
+    gitChip.textContent = gitMode ? 'Hide changes' : 'Modified · show changes';
+    gitChip.setAttribute('aria-pressed', String(gitMode));
+    gitChip.title = (gitMode ? 'Stop highlighting changes since the last commit' : 'Highlight what changed since the last commit') + '  g';
+  }
+  function showGitChanges() {
+    if (!gitState || !gitState.html) return;
+    const committed = new DOMParser().parseFromString(`<div>${gitState.html}</div>`, 'text/html').body.firstChild;
+    markChanges(snapshot(committed), ' since commit');
+    if (!changed.length && changesPill.hidden) toast('Only formatting changed since the last commit');
+  }
+  async function refreshGit() {
+    if (!boot.file) return;
+    try {
+      const r = await fetch('/api/git/file?' + new URLSearchParams({ file: boot.file }));
+      gitState = r.ok ? await r.json() : null;
+    } catch { gitState = null; }
+    if (!gitState || !gitState.repo || gitState.status === 'clean') {
+      gitChip.hidden = true;
+      if (gitMode) { gitMode = false; clearChanges(); }
+      return;
+    }
+    gitChip.hidden = false;
+    if (gitState.status === 'untracked') {
+      gitChip.textContent = 'Not committed';
+      gitChip.disabled = true;
+      gitChip.classList.add('is-new');
+      gitChip.title = 'This file has never been committed';
+      return;
+    }
+    gitChip.disabled = false;
+    gitChip.classList.remove('is-new');
+    syncGitChip();
+    if (gitMode) showGitChanges();
+  }
+  function toggleGit() {
+    if (gitChip.hidden || gitChip.disabled) return;
+    gitMode = !gitMode;
+    syncGitChip();
+    if (gitMode) showGitChanges(); else clearChanges();
+  }
+  gitChip.addEventListener('click', toggleGit);
+
+  async function refreshGitTree() {
+    if (!sidebar || !boot.root) return;
+    let data;
+    try {
+      const r = await fetch('/api/git/tree?' + new URLSearchParams({ root: boot.root }));
+      if (!r.ok) return;
+      data = await r.json();
+    } catch { return; }
+    const modified = new Set(data.modified);
+    const untracked = new Set(data.untracked);
+    $$('.tree-file a', sidebar).forEach((a) => {
+      const href = a.getAttribute('href');
+      const mark = modified.has(href) ? 'M' : untracked.has(href) ? 'U' : '';
+      if (mark) {
+        a.dataset.git = mark;
+        a.setAttribute('aria-label', `${a.textContent} (${mark === 'M' ? 'modified since last commit' : 'not committed'})`);
+      } else {
+        delete a.dataset.git;
+        a.removeAttribute('aria-label');
+      }
+    });
+  }
+
   // ---------- keyboard ----------
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -1320,6 +1394,7 @@
       }
       case 'n': go('next'); break;
       case 'c': stepChange(1); break;
+      case 'g': toggleGit(); break;
       case 'f': toggleCurrentFold(); break;
       case 'F': toggleAllFolds(); break;
       case 'z': setFocus(!root.dataset.focus); break;
@@ -1346,6 +1421,8 @@
   revealHash();
   applyHash();
   rememberRecent();
+  refreshGit();
+  refreshGitTree();
   markRead();
   markUpdated();
   resumePosition();

@@ -65,6 +65,29 @@ check "preview: works with cookie" 'curl -s -b "$J" -G --data-urlencode "file=$S
 check "preview: needs cookie" '[[ $(curl -s -o /dev/null -w "%{http_code}" -G --data-urlencode "file=$SUB/linker.md" "$B/api/preview") == 401 ]]'
 check "preview: symlink out refused" '! curl -s -b "$J" -G --data-urlencode "file=$SUB/leak.md" "$B/api/preview" | grep -qi "top secret"'
 check "preview: outside roots refused" '[[ $(curl -s -b "$J" -o /dev/null -w "%{http_code}" "$B/api/preview?file=/etc/hosts") == 404 ]]'
+# git: a hostile repo whose config would run commands under `git status` / `git diff`
+if command -v git >/dev/null 2>&1; then
+  G="$W/repo"; mkdir -p "$G"
+  git -C "$G" -c init.defaultBranch=main init -q
+  printf '# Doc\n\nCommitted text.\n' > "$G/doc.md"
+  git -C "$G" add doc.md && git -C "$G" -c user.name=t -c user.email=t@t commit -qm init
+  printf '#!/bin/sh\ntouch "%s/pwned"\n' "$W" > "$W/evil.sh"; chmod +x "$W/evil.sh"
+  git -C "$G" config core.fsmonitor "$W/evil.sh"
+  git -C "$G" config filter.evil.clean "$W/evil.sh"
+  git -C "$G" config diff.external "$W/evil.sh"
+  echo '*.md filter=evil' > "$G/.gitattributes"
+  printf '# Doc\n\nChanged text.\n' > "$G/doc.md"
+  rm -f "$W/pwned"
+  URLG=$("$RT" "$P/bin/mdv.js" "$G" --port $PORT --no-open); curl -s -c "$J" -b "$J" -o /dev/null "$URLG"
+  GR="$(cd "$G" && pwd -P)"
+  GF=$(curl -s -b "$J" -G --data-urlencode "file=$GR/doc.md" "$B/api/git/file")
+  GT=$(curl -s -b "$J" -G --data-urlencode "root=$GR" "$B/api/git/tree")
+  check "git: modified file detected" 'grep -q "\"status\":\"modified\"" <<<"$GF" && grep -q "Committed text" <<<"$GF"'
+  check "git: tree lists modified file" 'grep -q "doc.md" <<<"$GT"'
+  check "git: hostile repo config never runs" '[[ ! -e "$W/pwned" ]]'
+  check "git: needs cookie" '[[ $(curl -s -o /dev/null -w "%{http_code}" -G --data-urlencode "file=$GR/doc.md" "$B/api/git/file") == 401 ]]'
+  check "git: outside roots says no repo" 'grep -q "\"repo\":false" <<<"$(curl -s -b "$J" "$B/api/git/file?file=/etc/hosts")"'
+fi
 check "?raw shows markdown as text" 'curl -s -b "$J" -I "$B/view$R/sub/victim.md?raw" | grep -qi "content-type: text/plain"'
 
 # live-reload symlink swap

@@ -55,6 +55,16 @@ instead. Include steps to reproduce and the version (`mdv --version`).
   opening one directly runs with no scripts and an opaque origin. PDFs are the exception,
   because Chrome's viewer can't run sandboxed and PDFs don't run page script.
 
+**Git**
+
+- "Changes since the last commit" uses only git plumbing (`rev-parse`, `ls-tree`,
+  `cat-file`) with fsmonitor and hooks disabled, and hashes working files itself. `git status`
+  and `git diff` aren't used because a repository's own config (`core.fsmonitor`, clean
+  filters, `diff.external`) can make them run commands. The tests include a repository set up
+  to do exactly that.
+- On macOS, mdv uses git only if Homebrew git or the Command Line Tools are installed, so it
+  never triggers the "install developer tools" prompt.
+
 ## Tests
 
 `npm test` (and `npm run test:bun`) runs `test/security.sh`, which checks each protection

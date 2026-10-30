@@ -14,6 +14,7 @@ import { CONFIG_DIR, loadSecret, safeEqual } from './auth.js';
 import { FONT_PACKAGES } from './themes.js';
 import { search, flattenTree } from './search.js';
 import { linkReport } from './links.js';
+import { fileStatus, treeStatus } from './git.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT = path.resolve(HERE, '..');
@@ -613,6 +614,24 @@ async function handle(req, res) {
       count: files.length,
       results: results.map((x) => ({ ...x, url: viewUrl(x.file), file: undefined })),
     }), 'application/json');
+  }
+
+  if (pathname === '/api/git/file') {
+    const f = resolveAllowed(url.searchParams.get('file') || '');
+    if (f.error || !f.stat.isFile() || !isMarkdown(f.real)) return send(res, 200, '{"repo":false}', 'application/json');
+    const st = fileStatus(f.real);
+    const out = { repo: st.repo, status: st.status };
+    if (st.status === 'modified' && st.committed.length <= MAX_RENDER_BYTES) out.html = renderMarkdown(st.committed).html;
+    return send(res, 200, JSON.stringify(out), 'application/json');
+  }
+
+  if (pathname === '/api/git/tree') {
+    const r = resolveAllowed(url.searchParams.get('root') || '');
+    const dirRoot = r.real && r.stat.isDirectory() ? dirRootFor(r.real) : null;
+    if (!dirRoot) return send(res, 200, '{"repo":false,"modified":[],"untracked":[]}', 'application/json');
+    const files = flattenTree(listMarkdownTree(dirRoot.dir)).filter((x) => { const a = resolveAllowed(x); return !a.error && a.stat.isFile(); });
+    const st = treeStatus(dirRoot.dir, files);
+    return send(res, 200, JSON.stringify({ repo: st.repo, modified: st.modified.map((x) => viewUrl(x)), untracked: st.untracked.map((x) => viewUrl(x)) }), 'application/json');
   }
 
   if (pathname === '/api/preview') {

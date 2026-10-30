@@ -126,6 +126,7 @@ ${bootScript()}
     ${sidebar ? `<button type="button" class="icon-btn" id="mdv-toggle-sidebar" aria-label="Toggle sidebar ( [ )" title="Toggle sidebar  [" aria-controls="mdv-sidebar"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7.5 3.5v13" stroke="currentColor" stroke-width="1.4"/></svg></button>` : ''}
     <nav class="crumbs" aria-label="Location">${crumbs}</nav>
     <span class="read-time" id="mdv-read-time"></span>
+    <button type="button" class="git-chip" id="mdv-git" aria-pressed="false" hidden></button>
   </div>
   <div class="bar-right" role="toolbar" aria-label="Reader settings">
     <button type="button" class="search-btn" id="mdv-search-btn" title="Search  ⌘K" aria-label="Search (⌘K)" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12.6 12.6 17 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="search-btn-label">Search</span><kbd>⌘K</kbd></button>
@@ -164,6 +165,7 @@ ${bootScript()}
     <div><dt><kbd>[</kbd></dt><dd>Show or hide the sidebar</dd></div>
     <div><dt><kbd>n</kbd> <kbd>p</kbd></dt><dd>Next or previous file</dd></div>
     <div><dt><kbd>c</kbd> <kbd>⇧C</kbd></dt><dd>Next or previous change after a live reload</dd></div>
+    <div><dt><kbd>g</kbd></dt><dd>Show changes since the last git commit</dd></div>
     <div><dt><kbd>f</kbd> <kbd>⇧F</kbd></dt><dd>Fold this section / fold all to an outline</dd></div>
     <div><dt><kbd>z</kbd></dt><dd>Focus mode (hide everything but the text)</dd></div>
     <div><dt><kbd>e</kbd></dt><dd>Open in your editor</dd></div>
