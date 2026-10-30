@@ -1,5 +1,7 @@
 # mdv
 
+[![test](https://github.com/ateebasif/md-viewer/actions/workflows/test.yml/badge.svg)](https://github.com/ateebasif/md-viewer/actions/workflows/test.yml)
+
 **A fast, offline Markdown viewer for macOS.** Point it at a file or a folder and it opens a
 clean, themed page in your browser that updates as you save. It's built for reading, not
 editing: good typography, 18 themes, 15 fonts, and no Electron.
@@ -319,6 +321,19 @@ mdv --foreground sample
 The server reads `src/` when it starts, so restart it after changing server code. Changes in
 `public/` only need a page reload. Everything must run unchanged under both Node and Bun.
 
+### Tests
+
+```bash
+npm test            # security tests on Node
+npm run test:bun    # the same tests on Bun
+```
+
+`test/security.sh` starts an isolated server (its own port and config folder) against
+fixtures in a temporary folder. It checks sign-in, path and symlink escapes, FIFOs, HTML
+stripping, search, links and live reload. It cleans up after itself and exits non-zero if any
+check fails. GitHub Actions runs it on macOS for Node 18, Node 22 and Bun on every push and
+pull request.
+
 ```
 bin/mdv.js       CLI: arguments, single-instance handoff, starting the server
 src/server.js    HTTP server, access checks, auth, live reload (SSE), idle shutdown
@@ -332,6 +347,7 @@ src/links.js     Backlinks and broken-link checks between documents
 public/          Client CSS and JS: themes, reader controls, filter, Mermaid, live reload
 macos/           AppleScript for MDView.app and the icon drawing script
 sample/          Documents that exercise every feature
+test/            Security regression tests (npm test)
 ```
 
 ## Credits

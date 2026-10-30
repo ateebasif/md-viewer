@@ -55,6 +55,11 @@ instead. Include steps to reproduce and the version (`mdv --version`).
   opening one directly runs with no scripts and an opaque origin. PDFs are the exception,
   because Chrome's viewer can't run sandboxed and PDFs don't run page script.
 
+## Tests
+
+`npm test` (and `npm run test:bun`) runs `test/security.sh`, which checks each protection
+above against a live server, including symlink and FIFO tricks. CI runs it on every push.
+
 ## Known limits
 
 - Remote images in Markdown (`https://…`) are allowed so README badges work. Loading one

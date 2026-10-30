@@ -1,0 +1,40 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  security:
+    name: ${{ matrix.runtime }} ${{ matrix.version }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runtime: node
+            version: 18
+          - runtime: node
+            version: 22
+          - runtime: bun
+            version: latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.runtime == 'node' && matrix.version || 22 }}
+
+      - uses: oven-sh/setup-bun@v2
+        if: matrix.runtime == 'bun'
+        with:
+          bun-version: ${{ matrix.version }}
+
+      - name: Install dependencies
+        run: ${{ matrix.runtime == 'bun' && 'bun install --frozen-lockfile' || 'npm ci' }}
+
+      - name: Check syntax
+        run: for f in bin/*.js src/*.js public/app.js; do node --check "$f"; done
+
+      - name: Security tests
+        run: bash test/security.sh ${{ matrix.runtime }}

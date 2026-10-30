@@ -27,7 +27,9 @@
     "mdv": "bin/mdv.js"
   },
   "scripts": {
-    "start": "node bin/mdv.js"
+    "start": "node bin/mdv.js",
+    "test": "bash test/security.sh node",
+    "test:bun": "bash test/security.sh bun"
   },
   "engines": {
     "node": ">=18"
