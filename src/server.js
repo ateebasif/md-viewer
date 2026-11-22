@@ -556,7 +556,7 @@ async function handle(req, res) {
     return sendPage(res, 401, {
       title: 'Open with mdv',
       content: stateHtml('Open this page with mdv', null,
-        'For your safety, mdv only shows files in a browser that was opened by the <code>mdv</code> command, MDView.app or the Finder Quick Action. Run <code>mdv &lt;file-or-folder&gt;</code> again.'),
+        'For your safety, mdv only shows files in a browser that was opened by the <code>mdv</code> command, md-viewer.app or the Finder Quick Action. Run <code>mdv &lt;file-or-folder&gt;</code> again.'),
     });
   }
 

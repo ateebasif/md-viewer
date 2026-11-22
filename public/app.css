@@ -832,7 +832,10 @@ body.resizing iframe, body.resizing .prose { pointer-events: none; }
 .stepper { display: flex; align-items: center; gap: 6px; }
 .stepper button { width: 38px; height: 28px; font: 600 12.5px var(--sans); }
 .stepper output { min-width: 40px; text-align: center; font: 500 13px var(--sans); font-variant-numeric: tabular-nums; color: var(--muted); }
-.set-reset { display: block; margin: 14px 0 2px auto; padding: 4px 6px; border: 0; background: none; color: var(--muted); font: 12.5px var(--sans); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.set-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0 2px; }
+.set-support { color: var(--muted); font: 12.5px var(--sans); text-decoration: none; padding: 4px 0; }
+.set-support:hover { color: var(--accent); }
+.set-reset { display: block; margin: 0 0 0 auto; padding: 4px 6px; border: 0; background: none; color: var(--muted); font: 12.5px var(--sans); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .set-reset:hover { color: var(--fg); }
 @media (max-width: 520px) { .settings { right: 8px; } .font-grid { grid-template-columns: 1fr; } }
 

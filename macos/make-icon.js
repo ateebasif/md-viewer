@@ -1,4 +1,4 @@
-// JXA script: draws the MDView icon with AppKit and writes a 1024px PNG.
+// JXA script: draws the md-viewer icon with AppKit and writes a 1024px PNG.
 // Usage: osascript -l JavaScript macos/make-icon.js /path/to/out.png
 ObjC.import('AppKit');
 

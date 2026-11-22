@@ -1,13 +1,50 @@
 #!/bin/bash
-# Installs mdv: dependencies, the `mdv` command, MDView.app and a Finder Quick Action.
+# Installs md-viewer: dependencies, the `mdv` command, md-viewer.app and a Finder Quick Action.
+#
+#   ./install.sh                 from a clone
+#   curl -fsSL https://raw.githubusercontent.com/ateebasif/md-viewer/main/install.sh | bash
+#   install.sh --finder-only     only the app and Quick Action (used after `brew install`)
 set -euo pipefail
 
-PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="ateebasif/md-viewer"
+REF="${MD_VIEWER_REF:-main}"
+HOME_DIR="${MD_VIEWER_HOME:-$HOME/.local/share/md-viewer}"
+
+FINDER_ONLY=0
+for arg in "$@"; do
+  case "$arg" in
+    --finder-only) FINDER_ONLY=1 ;;
+    *) echo "install.sh: unknown option $arg (only --finder-only is supported)" >&2; exit 2 ;;
+  esac
+done
+
+# ---------- 0. bootstrap when run through `curl | bash` ----------
+# There's no project folder next to the script then, so fetch one into $HOME_DIR and
+# run its own install.sh. Running the same command again updates it.
+SELF="${BASH_SOURCE[0]:-}"
+if [[ -z "$SELF" || ! -f "$(dirname "$SELF")/bin/mdv.js" ]]; then
+  printf '\033[1m==>\033[0m %s\n' "Downloading md-viewer ($REF) into $HOME_DIR"
+  if [[ -e "$HOME_DIR" && ! -f "$HOME_DIR/bin/mdv.js" ]]; then
+    echo "$HOME_DIR exists and isn't an md-viewer install; set MD_VIEWER_HOME to another folder." >&2
+    exit 1
+  fi
+  # A tarball avoids needing git (and the Xcode command line tools it pulls in).
+  TMP_DL="$(mktemp -d)"
+  curl -fsSL "${MD_VIEWER_TARBALL:-https://codeload.github.com/$REPO/tar.gz/$REF}" | tar -xz -C "$TMP_DL" --strip-components 1
+  mkdir -p "$(dirname "$HOME_DIR")"
+  rm -rf "$HOME_DIR"
+  mv "$TMP_DL" "$HOME_DIR"
+  exec bash "$HOME_DIR/install.sh" "$@"
+fi
+
+# Logical path (no -P): a Homebrew opt/ symlink stays valid across upgrades.
+PROJECT="$(cd "$(dirname "$SELF")" && pwd)"
 CLI="$PROJECT/bin/mdv.js"
 APP_DIR="$HOME/Applications"
-APP="$APP_DIR/MDView.app"
+APP="$APP_DIR/md-viewer.app"
 SERVICES="$HOME/Library/Services"
-WORKFLOW="$SERVICES/View in MDView.workflow"
+WORKFLOW="$SERVICES/View in md-viewer.workflow"
+# Unchanged from when the app was called MDView, so "Open with" defaults carry over.
 BUNDLE_ID="local.mdv.MDView"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
@@ -18,7 +55,12 @@ warn() { printf '\033[33mwarning:\033[0m %s\n' "$*"; }
 # Finder apps don't get your shell PATH, so record absolute paths now.
 NODE="$(command -v node || true)"
 BUN="$(command -v bun || true)"
-if [[ -n "$NODE" ]]; then
+# Installed by Homebrew (<prefix>/opt/md-viewer/libexec): use the node Homebrew installed with
+# it, by its opt/ path, rather than whatever node (nvm's, say) is first on PATH.
+BREW_NODE="$(dirname "$(dirname "$PROJECT")")/node/bin/node"
+if [[ "$PROJECT" == */opt/md-viewer/libexec && -x "$BREW_NODE" ]]; then
+  RUNTIME="$BREW_NODE"
+elif [[ -n "$NODE" ]]; then
   RUNTIME="$NODE"
 elif [[ -n "$BUN" ]]; then
   RUNTIME="$BUN"
@@ -26,9 +68,14 @@ else
   echo "mdv needs Node.js 18+ or Bun. Install one (e.g. https://nodejs.org) and re-run." >&2
   exit 1
 fi
-RUNTIME="$(cd "$(dirname "$RUNTIME")" && pwd -P)/$(basename "$RUNTIME")"
+[[ "$RUNTIME" == "$BREW_NODE" ]] || RUNTIME="$(cd "$(dirname "$RUNTIME")" && pwd -P)/$(basename "$RUNTIME")"
+# Homebrew's node lives in a versioned Cellar folder; use its stable opt/ link instead.
+for opt in /opt/homebrew/opt/node/bin/node /usr/local/opt/node/bin/node; do
+  if [[ -x "$opt" && "$(cd "$(dirname "$opt")" && pwd -P)/node" == "$RUNTIME" ]]; then RUNTIME="$opt"; break; fi
+done
 
 cd "$PROJECT"
+if [[ $FINDER_ONLY -eq 0 ]]; then
 if [[ -n "$BUN" ]]; then
   say "Installing dependencies with bun"
   "$BUN" install
@@ -48,7 +95,8 @@ if [[ -z "$LINK_DIR" ]]; then
   mkdir -p "$LINK_DIR"
 fi
 ln -sf "$CLI" "$LINK_DIR/mdv"
-say "Linked mdv → $LINK_DIR/mdv"
+ln -sf "$CLI" "$LINK_DIR/md-viewer"
+say "Linked mdv and md-viewer into $LINK_DIR"
 case ":$PATH:" in
   *":$LINK_DIR:"*) ;;
   *) warn "$LINK_DIR is not on your PATH. Add this to ~/.zshrc:"
@@ -57,16 +105,23 @@ esac
 if [[ "$RUNTIME" == "$BUN" ]]; then
   warn "Only Bun was found. The mdv command's shebang uses node; run it as: bun $CLI <path>"
 fi
+fi
 
-# ---------- 3. MDView.app ----------
+# ---------- 3. md-viewer.app ----------
 say "Building $APP"
 mkdir -p "$APP_DIR"
+# Earlier versions called the app MDView; replace it rather than leave two.
+if [[ -d "$APP_DIR/MDView.app" ]]; then
+  "$LSREGISTER" -u "$APP_DIR/MDView.app" 2>/dev/null || true
+  rm -rf "$APP_DIR/MDView.app"
+fi
+rm -rf "$SERVICES/View in MDView.workflow"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 # Fill the template with the runtime itself (node or bun), so paths containing & " \ or $
 # are escaped exactly once for an AppleScript string literal.
-MDV_TPL_IN="$PROJECT/macos/MDView.applescript" MDV_TPL_OUT="$TMP/MDView.applescript" \
+MDV_TPL_IN="$PROJECT/macos/md-viewer.applescript" MDV_TPL_OUT="$TMP/md-viewer.applescript" \
 MDV_TPL_RUNTIME="$RUNTIME" MDV_TPL_CLI="$CLI" "$RUNTIME" -e '
   const fs = require("fs");
   const e = process.env;
@@ -77,13 +132,15 @@ MDV_TPL_RUNTIME="$RUNTIME" MDV_TPL_CLI="$CLI" "$RUNTIME" -e '
   fs.writeFileSync(e.MDV_TPL_OUT, src);
 '
 # Compile next to the old app and swap it in, so a failed build leaves the old one working.
-osacompile -o "$TMP/MDView.app" "$TMP/MDView.applescript"
+osacompile -o "$TMP/md-viewer.app" "$TMP/md-viewer.applescript"
 rm -rf "$APP"
-mv "$TMP/MDView.app" "$APP"
+mv "$TMP/md-viewer.app" "$APP"
 
 PLIST="$APP/Contents/Info.plist"
 plutil -replace CFBundleIdentifier -string "$BUNDLE_ID" "$PLIST"
-plutil -replace CFBundleShortVersionString -string "1.0.0" "$PLIST"
+VERSION="$(cd "$PROJECT" && "$RUNTIME" -e 'console.log(require("./package.json").version)' 2>/dev/null || echo 1.0.0)"
+plutil -replace CFBundleShortVersionString -string "$VERSION" "$PLIST"
+plutil -replace CFBundleName -string "md-viewer" "$PLIST"
 plutil -replace LSUIElement -bool true "$PLIST"
 plutil -remove CFBundleIconName "$PLIST" 2>/dev/null || true
 plutil -replace CFBundleDocumentTypes -json '[
@@ -101,7 +158,7 @@ plutil -replace UTImportedTypeDeclarations -json '[
 
 # Icon: drawn with AppKit via JXA, sized with sips, packed with iconutil.
 if osascript -l JavaScript "$PROJECT/macos/make-icon.js" "$TMP/icon.png" >/dev/null 2>&1; then
-  ICONSET="$TMP/MDView.iconset"
+  ICONSET="$TMP/md-viewer.iconset"
   mkdir -p "$ICONSET"
   for s in 16 32 128 256 512; do
     sips -z $s $s "$TMP/icon.png" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
@@ -123,10 +180,10 @@ fi
 codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || warn "codesign failed; macOS may refuse to launch the app"
 touch "$APP"
 "$LSREGISTER" -f "$APP"
-say "Registered MDView with Launch Services"
+say "Registered md-viewer with Launch Services"
 
 # ---------- 4. Finder Quick Action ----------
-say "Installing Quick Action \"View in MDView\""
+say "Installing Quick Action \"View in md-viewer\""
 mkdir -p "$SERVICES"
 rm -rf "$WORKFLOW"
 mkdir -p "$WORKFLOW/Contents"
@@ -146,7 +203,7 @@ cat > "$WORKFLOW/Contents/Info.plist" <<'PLIST'
 			<key>NSMenuItem</key>
 			<dict>
 				<key>default</key>
-				<string>View in MDView</string>
+				<string>View in md-viewer</string>
 			</dict>
 			<key>NSMessage</key>
 			<string>runWorkflowAsService</string>
@@ -396,19 +453,22 @@ plutil -lint "$WORKFLOW/Contents/Info.plist" >/dev/null
 /System/Library/CoreServices/pbs -update 2>/dev/null || true
 
 # ---------- 5. done ----------
+B="$(printf '\033[1m')"; R="$(printf '\033[0m')"
+echo
+echo "${B}md-viewer is installed.${R}"
+echo "  Runtime:      $RUNTIME"
+if [[ $FINDER_ONLY -eq 0 ]]; then
+  echo "  Command:      $LINK_DIR/mdv  (try: mdv $PROJECT/sample)"
+fi
 cat <<EOF
-
-$(printf '\033[1m')mdv is installed.$(printf '\033[0m')
-  Runtime:      $RUNTIME
-  Command:      $LINK_DIR/mdv  (try: mdv $PROJECT/sample)
   App:          $APP
-  Quick Action: right-click a .md file or folder in Finder → Quick Actions → View in MDView
+  Quick Action: right-click a .md file or folder in Finder → Quick Actions → View in md-viewer
                 (if it's missing, enable it in System Settings → Keyboard → Keyboard Shortcuts → Services → Files and Folders)
 
-Make MDView the default app for Markdown files:
+Make md-viewer the default app for Markdown files:
   1. In Finder, select any .md file and press ⌘I (Get Info).
-  2. Under "Open with", choose MDView (pick "Other…" and browse to $APP if it isn't listed).
+  2. Under "Open with", choose md-viewer (pick "Other…" and browse to $APP if it isn't listed).
   3. Click "Change All…" and confirm.
 
-If you later move or upgrade Node (e.g. with nvm), re-run ./install.sh so the app points at the right runtime.
+If you switch Node versions later (with nvm, say), run the install again so the app finds the right runtime.
 EOF

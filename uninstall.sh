@@ -3,8 +3,8 @@
 set -uo pipefail
 
 PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP="$HOME/Applications/MDView.app"
-WORKFLOW="$HOME/Library/Services/View in MDView.workflow"
+APPS=("$HOME/Applications/md-viewer.app" "$HOME/Applications/MDView.app")
+WORKFLOWS=("$HOME/Library/Services/View in md-viewer.workflow" "$HOME/Library/Services/View in MDView.workflow")
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
 say() { printf '\033[1m==>\033[0m %s\n' "$*"; }
@@ -17,27 +17,44 @@ fi
 TARGET="$(realpath "$PROJECT/bin/mdv.js" 2>/dev/null || echo "$PROJECT/bin/mdv.js")"
 
 for d in "$HOME/.local/bin" "/usr/local/bin"; do
-  link="$d/mdv"
-  # Only remove the link if it points at this project.
-  if [[ -L "$link" && "$(realpath "$link" 2>/dev/null)" == "$TARGET" ]]; then
-    rm -f "$link" && say "Removed $link"
+  for name in mdv md-viewer; do
+    link="$d/$name"
+    # Only remove the link if it points at this project.
+    if [[ -L "$link" && "$(realpath "$link" 2>/dev/null)" == "$TARGET" ]]; then
+      rm -f "$link" && say "Removed $link"
+    fi
+  done
+done
+
+for APP in "${APPS[@]}"; do
+  if [[ -d "$APP" ]]; then
+    "$LSREGISTER" -u "$APP" 2>/dev/null || true
+    rm -rf "$APP" && say "Removed $APP"
   fi
 done
 
-if [[ -d "$APP" ]]; then
-  "$LSREGISTER" -u "$APP" 2>/dev/null || true
-  rm -rf "$APP" && say "Removed $APP"
-fi
-
-if [[ -d "$WORKFLOW" ]]; then
-  rm -rf "$WORKFLOW" && say "Removed Quick Action"
-  /System/Library/CoreServices/pbs -update 2>/dev/null || true
-fi
+for WORKFLOW in "${WORKFLOWS[@]}"; do
+  if [[ -d "$WORKFLOW" ]]; then
+    rm -rf "$WORKFLOW" && say "Removed Quick Action"
+    /System/Library/CoreServices/pbs -update 2>/dev/null || true
+  fi
+done
 
 if [[ -d "$HOME/.config/mdv" ]]; then
   rm -rf "$HOME/.config/mdv" && say "Removed ~/.config/mdv (settings, opened folders, access key)"
 fi
 
+# A curl install keeps its files in ~/.local/share/md-viewer; remove that too.
+if [[ "$PROJECT" == "${MD_VIEWER_HOME:-$HOME/.local/share/md-viewer}" ]]; then
+  rm -rf "$PROJECT" && say "Removed $PROJECT"
+  REMOVED_PROJECT=1
+fi
+
 echo
-echo "Done. If MDView was your default app for .md files, pick a new one via Finder → Get Info → Open with."
-echo "Logs (if any) are at ~/Library/Logs/mdv.log. Delete this folder to remove mdv completely."
+echo "Done. If md-viewer was your default app for .md files, pick a new one via Finder → Get Info → Open with."
+echo "Logs (if any) are at ~/Library/Logs/mdv.log."
+if [[ "$PROJECT" == */opt/md-viewer/libexec || "$PROJECT" == */Cellar/md-viewer/* ]]; then
+  echo "Now run: brew uninstall md-viewer"
+elif [[ -z "${REMOVED_PROJECT:-}" ]]; then
+  echo "Delete this folder to remove md-viewer completely."
+fi

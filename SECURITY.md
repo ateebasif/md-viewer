@@ -33,7 +33,7 @@ instead. Include steps to reproduce and the version (`mdv --version`).
 
 **Which files can be read**
 
-- Only folders you opened with `mdv`, MDView.app or the Quick Action. Opened folders are
+- Only folders you opened with `mdv`, md-viewer.app or the Quick Action. Opened folders are
   remembered in `~/.config/mdv/roots.json`.
 - Every read, including live-reload re-renders, resolves the real path and checks it against
   those folders, so `..`, symlinks and files later swapped for symlinks can't escape.

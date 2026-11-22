@@ -1,5 +1,5 @@
 {
-  "name": "mdv",
+  "name": "md-viewer",
   "version": "1.0.0",
   "description": "A fast, offline Markdown viewer for macOS: themed reading, live reload, Finder integration",
   "keywords": [
@@ -24,7 +24,8 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "mdv": "bin/mdv.js"
+    "mdv": "bin/mdv.js",
+    "md-viewer": "bin/mdv.js"
   },
   "scripts": {
     "start": "node bin/mdv.js",

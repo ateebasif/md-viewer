@@ -1,4 +1,4 @@
--- MDView: hands files and folders from Finder to the mdv CLI.
+-- md-viewer: hands files and folders from Finder to the mdv CLI.
 -- The two paths below are filled in by install.sh with absolute paths,
 -- because apps launched from Finder don't inherit your shell's PATH.
 property runtimePath : "__RUNTIME__"
@@ -7,7 +7,7 @@ property cliPath : "__CLI__"
 on run
 	activate
 	try
-		set choice to button returned of (display dialog "Open a Markdown file or a folder of Markdown files." buttons {"Cancel", "Folder…", "File…"} default button "File…" cancel button "Cancel" with title "MDView")
+		set choice to button returned of (display dialog "Open a Markdown file or a folder of Markdown files." buttons {"Cancel", "Folder…", "File…"} default button "File…" cancel button "Cancel" with title "md-viewer")
 	on error number -128
 		return
 	end try

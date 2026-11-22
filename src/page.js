@@ -46,6 +46,9 @@ function segmented(name, items) {
     `</div>`;
 }
 
+// One-time $3 tip (a paid Patreon post). A plain link: nothing loads until it's clicked.
+const SUPPORT_URL = 'https://www.patreon.com/AteebAsif/posts/buy-me-coffee-175919560';
+
 function settingsPanel() {
   const groups = [...new Set(FONTS.map((f) => f.group))];
   const fontGrid = groups.map((g) =>
@@ -61,7 +64,10 @@ function settingsPanel() {
   <div class="set-row"><h3>Code</h3><div class="seg-ctl" role="radiogroup" aria-label="Code font">${MONO_FONTS.map((f) =>
     `<button type="button" role="radio" data-mono="${f.id}" style="font-family:${escapeHtml(f.stack)}">${escapeHtml(f.label)}</button>`).join('')}</div></div>
   <div class="set-row"><h3>Focus</h3><button type="button" class="set-focus" data-action="focus">Enter focus mode <kbd>z</kbd></button></div>
-  <button type="button" class="set-reset" id="mdv-settings-reset">Reset to defaults</button>
+  <div class="set-foot">
+    <a class="set-support" href="${SUPPORT_URL}" target="_blank" rel="noopener noreferrer">☕ Buy me a coffee</a>
+    <button type="button" class="set-reset" id="mdv-settings-reset">Reset to defaults</button>
+  </div>
 </div>`;
 }
 

@@ -1,4 +1,4 @@
-# mdv
+# md-viewer
 
 [![test](https://github.com/ateebasif/md-viewer/actions/workflows/test.yml/badge.svg)](https://github.com/ateebasif/md-viewer/actions/workflows/test.yml)
 
@@ -6,13 +6,18 @@
 clean, themed page in your browser that updates as you save. It's built for reading, not
 editing: good typography, 18 themes, 15 fonts, and no Electron.
 
+It's handy when AI tools write your Markdown: when an agent rewrites a spec or a set of
+PRDs, md-viewer highlights exactly which paragraphs changed.
+
+The command is `mdv` (`md-viewer` works too):
+
 ```bash
 mdv README.md      # one file
 mdv ~/notes        # a whole folder, with a sidebar of every Markdown file
 mdv                # the current folder
 ```
 
-![mdv showing a folder of notes in the Light theme, with the file sidebar and table of contents](docs/screenshots/light.png)
+![md-viewer showing a folder of notes in the Light theme, with the file sidebar and table of contents](docs/screenshots/light.png)
 
 <table>
   <tr>
@@ -51,7 +56,7 @@ mdv                # the current folder
 - **Code that's easy to scan.** Syntax highlighting, copy buttons, `$` prompts on shell
   commands (left out when you copy), terminal sessions with dimmed output, file names in
   headers, whole-line diffs, and long blocks that fold.
-- **Finder integration.** Open With, drag and drop onto the app, a "View in MDView" Quick
+- **Finder integration.** Open With, drag and drop onto the app, a "View in md-viewer" Quick
   Action, or set it as your default Markdown app.
 - **Private and offline.** It runs on `127.0.0.1` only and never loads anything from a CDN.
   It serves only the folders you open, and only to a browser you opened it in.
@@ -63,6 +68,26 @@ mdv                # the current folder
 
 ## Install
 
+**Homebrew:**
+
+```bash
+brew install ateebasif/tap/md-viewer
+```
+
+Then, to add it to Finder (Open With and the Quick Action), run the command Homebrew prints,
+`$(brew --prefix)/opt/md-viewer/libexec/install.sh --finder-only`.
+
+**One line, without Homebrew:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ateebasif/md-viewer/main/install.sh | bash
+```
+
+This downloads md-viewer into `~/.local/share/md-viewer` and runs its installer. Run the
+same line again to update. You can read [install.sh](install.sh) first.
+
+**From a clone:**
+
 ```bash
 git clone https://github.com/ateebasif/md-viewer.git
 cd md-viewer
@@ -72,22 +97,25 @@ cd md-viewer
 The installer:
 
 1. Installs dependencies (`bun install` if Bun is available, otherwise `npm install`).
-2. Links `mdv` into `~/.local/bin`, or `/usr/local/bin` if that's the writable one. If the
-   folder isn't on your `PATH`, it prints the line to add to `~/.zshrc`.
-3. Builds **MDView.app** into `~/Applications` and registers it, so it appears under
+2. Links `mdv` and `md-viewer` into `~/.local/bin`, or `/usr/local/bin` if that's the
+   writable one. If the folder isn't on your `PATH`, it prints the line to add to `~/.zshrc`.
+3. Builds **md-viewer.app** into `~/Applications` and registers it, so it appears under
    **Open With** for Markdown files and folders.
-4. Installs a Finder Quick Action called **View in MDView**.
+4. Installs a Finder Quick Action called **View in md-viewer**.
 
-Then try the sample:
+If you installed an earlier version, which called the app MDView, the installer replaces it.
+
+Then open the sample documents:
 
 ```bash
-mdv sample
+mdv sample                             # from a clone
+mdv ~/.local/share/md-viewer/sample    # after the one-line install
 ```
 
 > [!NOTE]
 > The app and the Quick Action call Node by its absolute path, because apps opened from
 > Finder don't get your shell `PATH`. If you switch Node versions (with nvm, say), run
-> `./install.sh` again.
+> the install again.
 
 ## Usage
 
@@ -122,15 +150,15 @@ in the viewer. `#section` links and footnotes stay in the current tab. Relative 
 
 ### From Finder
 
-- **Open With:** right-click a `.md` file or a folder and choose **Open With → MDView**.
-- **Quick Action:** right-click and choose **Quick Actions → View in MDView**. If it's
+- **Open With:** right-click a `.md` file or a folder and choose **Open With → md-viewer**.
+- **Quick Action:** right-click and choose **Quick Actions → View in md-viewer**. If it's
   missing, turn it on in System Settings → Keyboard → Keyboard Shortcuts → Services → Files
   and Folders.
-- **Drag and drop** files or folders onto MDView in `~/Applications` or the Dock.
-- **Open MDView.app by itself** to pick a file or folder.
+- **Drag and drop** files or folders onto md-viewer in `~/Applications` or the Dock.
+- **Open md-viewer.app by itself** to pick a file or folder.
 
-To make MDView the default for `.md` files, select any `.md` file in Finder and press **⌘I**.
-Under **Open with**, choose **MDView** (use **Other…** and browse to `~/Applications` if it
+To make md-viewer the default for `.md` files, select any `.md` file in Finder and press **⌘I**.
+Under **Open with**, choose **md-viewer** (use **Other…** and browse to `~/Applications` if it
 isn't listed), then click **Change All…**.
 
 ## Keyboard shortcuts
@@ -285,7 +313,7 @@ Open [`sample/showcase.md`](sample/showcase.md) with mdv to see every element.
 ## Troubleshooting
 
 **Nothing opens from Finder the first time.** For files in Downloads, Documents or Desktop,
-macOS asks whether MDView may access that folder, and nothing happens until you click
+macOS asks whether md-viewer may access that folder, and nothing happens until you click
 **Allow**. You can review this in System Settings → Privacy & Security → Files and Folders.
 Re-running `./install.sh` can make macOS ask again.
 
@@ -320,12 +348,15 @@ See [SECURITY.md](SECURITY.md) for details and how to report a vulnerability.
 ## Uninstall
 
 ```bash
-./uninstall.sh
+./uninstall.sh                                  # from a clone
+~/.local/share/md-viewer/uninstall.sh           # after the one-line install
+$(brew --prefix)/opt/md-viewer/libexec/uninstall.sh && brew uninstall md-viewer
 ```
 
-This stops the server and removes the `mdv` link, `~/Applications/MDView.app`, the Quick
-Action, and `~/.config/mdv` (settings, remembered folders and the access key). Delete the
-cloned folder, and `~/Library/Logs/mdv.log` if you like, to remove everything.
+This stops the server and removes the `mdv` and `md-viewer` links,
+`~/Applications/md-viewer.app`, the Quick Action, and `~/.config/mdv` (settings, remembered
+folders and the access key). The one-line install's folder is removed too. For a clone,
+delete the folder yourself, and `~/Library/Logs/mdv.log` if you like.
 
 ## Development
 
@@ -366,7 +397,8 @@ src/search.js    ⌘K search: file names, headings and full text, cached by mtim
 src/links.js     Backlinks and broken-link checks between documents
 src/git.js       Changes since the last commit, using read-only git plumbing
 public/          Client CSS and JS: themes, reader controls, filter, Mermaid, live reload
-macos/           AppleScript for MDView.app and the icon drawing script
+macos/           AppleScript for md-viewer.app and the icon drawing script
+packaging/       Homebrew formula template
 sample/          Documents that exercise every feature
 test/            Security regression tests (npm test)
 ```
@@ -378,6 +410,18 @@ Built on [marked](https://marked.js.org) and its extensions,
 are from [Fontsource](https://fontsource.org) under the SIL Open Font License. The Solarized,
 Gruvbox, Catppuccin, Rosé Pine, Tokyo Night and Dracula themes are adaptations of those
 projects' published palettes.
+
+## Support
+
+md-viewer is free and open source. If it saves you time, you can support it:
+
+- ☕ [Buy me a coffee](https://www.patreon.com/AteebAsif/posts/buy-me-coffee-175919560): a one-time $3 tip
+- [Become a supporter on Patreon](https://www.patreon.com/AteebAsif)
+
+There's also a coffee link at the bottom of the reading settings (**Aa**).
+
+I also made [Arca](https://github.com/ateebasif/arca), which turns your browser bookmarks into
+a visual New Tab dashboard.
 
 ## License
 
